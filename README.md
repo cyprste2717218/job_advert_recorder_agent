@@ -1,10 +1,10 @@
 # Job Advert Recorder Agent
 
-Python
-Pydantic
-Google ADK
-Playwright
-Composio MCP
+![Python](https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white)
+![Pydantic](https://img.shields.io/badge/Pydantic-v2-E92063?logo=pydantic&logoColor=white)
+![Google ADK](https://img.shields.io/badge/Google%20ADK-2.0-4285F4?logo=google&logoColor=white)
+![Playwright](https://img.shields.io/badge/Playwright-45ba4b?logo=playwright&logoColor=white)
+![Composio MCP](https://img.shields.io/badge/Composio-MCP%20Server-6E56CF)
 
 Never worry about manually copy pasting job advert details into spreadsheets again!
 
