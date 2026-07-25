@@ -1,7 +1,31 @@
+import os
+import warnings
+
+from composio import Composio
+from dotenv import load_dotenv
+from google.adk.agents.llm_agent import Agent
+from google.adk.tools.mcp_tool.mcp_session_manager import StreamableHTTPConnectionParams
+from google.adk.tools.mcp_tool.mcp_toolset import McpToolset
+
 from google.adk.agents.llm_agent import Agent
 from google.adk import Workflow
 from google.adk import Event
 from pydantic import BaseModel
+
+load_dotenv()
+
+warnings.filterwarnings("ignore", message=".*BaseAuthenticatedTool.*")
+
+GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
+COMPOSIO_API_KEY = os.getenv("COMPOSIO_API_KEY")
+COMPOSIO_USER_ID = os.getenv("COMPOSIO_USER_ID")
+
+if not GOOGLE_API_KEY:
+    raise ValueError("GOOGLE_API_KEY is not set in the environment.")
+if not COMPOSIO_API_KEY:
+    raise ValueError("COMPOSIO_API_KEY is not set in the environment.")
+if not COMPOSIO_USER_ID:
+    raise ValueError("COMPOSIO_USER_ID is not set in the environment.")
 
 root_agent = Agent(
     model='<FILL_IN_MODEL>',

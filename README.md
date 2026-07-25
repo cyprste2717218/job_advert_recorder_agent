@@ -19,39 +19,43 @@ The user supplies field definitions for their spreadsheet up front or they are i
 
 ```mermaid
 flowchart TD
-    Start([Start]) --> A["Node 1 (function)\nAsk user: provide fields up front,\nor pull fields from spreadsheet?"]
+    Start([Start]) --> R{"Routing (function)\nAre folder/workbook/sheet\ndetails already defined in config file?"}
 
-    A -- "User provides fields" --> B["Node 1a (agent)\nUse Composio MCP server to list spreadsheets\nAsk user which spreadsheet file to use"]
-    B --> C{"Vet user-provided fields\nagainst spreadsheet column headers"}
-    C -- "Mismatch found" --> C1["Raise inconsistency to user\n(field can't be mapped to a column)"]
-    C1 --> C
-    C -- "Fields match columns" --> F
+    R -- "Defined" --> F["Node 8 (function)\nAsk user for the page URL (job posting)"]
 
-    A -- "User defers to spreadsheet" --> D["Node 1b (agent)\nAsk user which spreadsheet file to use (fetch via Composio MCP server)\nFetch column headers as field list"]
-    D --> E["Confirm inferred fields with user"]
-    E --> F["Confirmed field list + target spreadsheet"]
+    R -- "Not defined" --> A["Node 1 (function)\nAsk user which folder in their OneDrive\nto look in for Excel workbooks"]
 
-    F --> G["Node 2 (agent)\nGiven a page URL, calls a Python function\nthat drives headless Chromium via Playwright\nto extract job description content"]
+    A --> B["Node 2 (agent)\nUse Composio MCP server to list spreadsheets\nin that folder and return their names to the user"]
 
-    G --> H["Node 3 (agent)\nUsing job description content + user fields,\nbuild an in-memory record\nkeyed by each user-specified field"]
+    B --> C["Node 3 (function)\nAsk user which workbook to use"]
 
-    H --> I["Node 4 (agent)\nAccess the user's spreadsheet\nand write the in-memory record\nas a new row"]
+    C --> D["Node 4 (agent)\nRetrieve the sheets within the selected workbook\nand return the sheet names to the user"]
 
-    I --> End([Done])
+    D --> E["Node 5 (function)\nAsk user which sheet to use"]
+
+    E --> J["Node 6 (function)\nRetrieve the column headers\nof the selected sheet"]
+
+    J --> K["Node 7 (function)\nWrite a new config file on the user's system\nstating the selected folder, workbook,\nand sheet"]
+
+    K --> F
+
+    F --> G["Node 9 (agent + function)\nGiven a page URL, calls a Python function\nthat drives headless Chromium via Playwright\nto extract job description content"]
+
+    G --> H["Node 10 (agent)\nUsing job description content + the selected sheet's fields,\nbuild an in-memory record\nkeyed by each field"]
+
+    H --> I["Node 11 (agent)\nAccess the selected sheet\nand write the in-memory record\nas a new row via Composio MCP server"]
+
+    I --> L["Node 12 (function)\nTell the user that the spreadsheet\nhas been updated"]
+
+    L --> End([Done])
 
     classDef terminal fill:#f1f3f4,stroke:#5f6368,stroke-width:1px,color:#5f6368
     classDef process fill:#e8f0fe,stroke:#bdc1c6,stroke-width:1px,color:#202124
-    classDef decision fill:#fffbee,stroke:#fbc044,stroke-width:1px,color:#202124
-    classDef warning fill:#fce8e6,stroke:#d93025,stroke-width:1px,color:#a50e0e
-    classDef success fill:#d9ead3,stroke:#38761d,stroke-width:1px,color:#274e13
-    classDef highlight fill:#a4c2f4,stroke:#1155cc,stroke-width:1px,color:#1c3d5a
+    classDef decision fill:#fef7e0,stroke:#f9ab00,stroke-width:1px,color:#202124
 
     class Start,End terminal
-    class A,B,D,G,H,I process
-    class C decision
-    class C1 warning
-    class E success
-    class F highlight
+    class A,B,C,D,E,F,G,H,I,J,K,L process
+    class R decision
 
     linkStyle default stroke:#595959,stroke-width:1px
 ```
@@ -65,11 +69,17 @@ flowchart TD
 
 | #   | Type                    | Responsibility                                                                                                                                                                                                                                                   |
 | --- | ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | Python function         | Asks the user whether to supply data fields up front or derive them from the spreadsheet; branches accordingly                                                                                                                                                   |
-| 1a  | Agent                   | Uses the Composio MCP server to list available spreadsheets, asks the user to pick one, then vets the user-supplied fields against that spreadsheet's actual column headers — flagging any mismatches so extracted data can't silently fail to map onto a column |
-| 1b  | Agent                   | Asks the user which spreadsheet to use, fetches its column headers directly as the field list, and confirms with the user before proceeding                                                                                                                      |
-| 2   | Agent + Python function | Given a page URL, drives headless Chromium via Playwright to navigate to the page and extract all job-description-related content                                                                                                                                |
-| 3   | Agent                   | Combines the extracted job description with the confirmed field list to build an in-memory record, one value per user-specified field                                                                                                                            |
-| 4   | Agent                   | Writes the in-memory record to the user's spreadsheet as a new row                                                                                                                                                                                               |
+| 1   | Python function         | Asks the user which folder in their OneDrive to look in for Excel workbooks                                                                                                                                                                                       |
+| 2   | Agent                   | Uses the Composio MCP server to list the spreadsheets found in that folder and returns their names to the user                                                                                                                                                    |
+| 3   | Python function         | Asks the user which workbook to use                                                                                                                                                                                                                                |
+| 4   | Agent                   | Retrieves the sheets within the selected workbook and returns the sheet names to the user                                                                                                                                                                         |
+| 5   | Python function         | Asks the user which sheet to use                                                                                                                                                                                                                                   |
+| 6   | Python function         | Retrieves the column headers of the selected sheet                                                                                                                                                                                                                 |
+| 7   | Python function         | Writes a new config file on the user's system summarising the selected folder, spreadsheet name, and sheet name                                                                                                                                                   |
+| 8   | Python function         | Asks the user for the page URL (job posting) to extract                                                                                                                                                                                                            |
+| 9   | Agent + Python function | Given a page URL, drives headless Chromium via Playwright to navigate to the page and extract all job-description-related content                                                                                                                                |
+| 10  | Agent                   | Combines the extracted job description with the selected sheet's fields to build an in-memory record, one value per field                                                                                                                                        |
+| 11  | Agent                   | Writes the in-memory record to the selected sheet as a new row                                                                                                                                                                                                     |
+| 12  | Python function         | Tells the user that the spreadsheet has been updated                                                                                                                                                                                                               |
 
 
