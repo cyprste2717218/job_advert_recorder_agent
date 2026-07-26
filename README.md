@@ -1,12 +1,12 @@
 # Job Advert Recorder Agent
 
-![Python](https://img.shields.io/badge/Python-3.14%2B-3776AB?logo=python&logoColor=white)
-![Pydantic](https://img.shields.io/badge/Pydantic-v2-E92063?logo=pydantic&logoColor=white)
-![Google ADK](https://img.shields.io/badge/Google%20ADK-2.0-4285F4?logo=google&logoColor=white)
-![Playwright](https://img.shields.io/badge/Playwright-45ba4b?logo=playwright&logoColor=white)
-![Composio MCP](https://img.shields.io/badge/Composio-MCP%20Server-6E56CF)
-![Ruff](https://img.shields.io/badge/Ruff-lint%20%26%20format-D7FF64?logo=ruff&logoColor=black)
-![Pyright](https://img.shields.io/badge/Pyright-type%20checked-3775A9?logo=python&logoColor=white)
+[![Python](https://img.shields.io/badge/Python-3.14%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![Pydantic](https://img.shields.io/badge/Pydantic-v2-E92063?logo=pydantic&logoColor=white)](https://docs.pydantic.dev/latest/)
+[![Google ADK](https://img.shields.io/badge/Google%20ADK-2.0-4285F4?logo=google&logoColor=white)](https://adk.dev/2.0/)
+[![Playwright](https://img.shields.io/badge/Playwright-45ba4b?logo=playwright&logoColor=white)](https://playwright.dev/)
+[![Composio MCP](https://img.shields.io/badge/Composio-MCP%20Server-6E56CF)](https://composio.dev/toolkits/excel/framework/google-adk)
+[![Ruff](https://img.shields.io/badge/Ruff-lint%20%26%20format-D7FF64?logo=ruff&logoColor=black)](https://docs.astral.sh/ruff/)
+[![Pyright](https://img.shields.io/badge/Pyright-type%20checked-3775A9?logo=python&logoColor=white)](https://microsoft.github.io/pyright/)
 
 <!-- Add demo gif here -->
 
