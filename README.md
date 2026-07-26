@@ -61,30 +61,30 @@ For the full node-by-node flowchart and node summary table, see [ARCHITECTURE.md
 ## Local Setup
 
 
-1). Setup a virtual env/uv for package management
+1). Create and navigate to a `job_tracker_agent` directory, then set up a virtual env for package management
 
-```bash
-python -m venv C:\path\to\new\virtual\environment # Create a new virtual env
-
-.venv\Scripts\python.exe -m pip install uv # Install uv into the venv 
-
-```
-
-2). Create and navigate to a `job_tracker_agent` directory, clone git repo & activate the virtual env
-
-```bash
+```powershell
 # Create and navigate to new folder to clone repo within
 mkdir job_tracker_agent
 cd job_tracker_agent
 
+python -m venv .venv # Create a new virtual env
+
+.venv\Scripts\python.exe -m pip install uv # Install uv into the venv
+
+```
+
+2). Activate the virtual env
+
+```powershell
 .venv\Scripts\Activate.ps1 # Activate the virtual env
 
 ```
 3). Clone repo and install packages
 
-```bash
+```powershell
 
-git clone https://github.com/cyprste2717218/job_advert_recorder_agent/
+git clone https://github.com/cyprste2717218/job_advert_recorder_agent/ .
 
 uv lock # Install pinned package versions
 
@@ -92,8 +92,8 @@ uv lock # Install pinned package versions
 
 4). Copy `.env.example` to `.env`:
 
-```bash
-cp .\env.example .\env\
+```powershell
+cp .\.env.example .\.env
 ```
 
 5). Setup your accounts & API keys:
