@@ -11,6 +11,7 @@
 **Never worry about manually copy pasting job advert details into spreadsheets again!**
 
 Job Advert Recorder Agent is a [graph-based](https://adk.dev/graphs/) agent pipeline using [Google ADK 2.0](https://adk.dev/2.0/) that extracts job description data from a URL and writes it into a row of a user's spreadsheet, auto-filling the relevant cell entries.
+<br>
 The tool is operated via the CLI, [see below for setup instructions](#local-setup).
 
 ## Contents
