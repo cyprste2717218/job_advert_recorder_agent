@@ -27,19 +27,21 @@ if not COMPOSIO_API_KEY:
 if not COMPOSIO_USER_ID:
     raise ValueError("COMPOSIO_USER_ID is not set in the environment.")
 
-root_agent = Agent(
+""" root_agent = Agent(
     model='<FILL_IN_MODEL>',
     name='root_agent',
     description='A helpful assistant for user questions.',
     instruction='Answer user questions to the best of your knowledge',
-)
+) """
 
 
-root_agent = Workflow(
+job_tracker_agent = Workflow(
     name="root_agent",
     edges=[
         ("START", city_generator_agent, lookup_time_function,
           city_report_agent, completed_message_function)
     ],
 )
+
+root_agent = job_tracker_agent
 

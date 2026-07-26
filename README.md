@@ -57,6 +57,57 @@ For the full node-by-node flowchart and node summary table, see [ARCHITECTURE.md
 
 ## Local Setup
 
+
+1). Setup a virtual env/uv for package management
+
+```bash
+python -m venv C:\path\to\new\virtual\environment # Create a new virtual env
+
+.venv\Scripts\python.exe -m pip install uv # Install uv into the venv 
+
+```
+
+2). Create and navigate to a `job_tracker_agent` directory, clone git repo & activate the virtual env
+
+```bash
+# Create and navigate to new folder to clone repo within
+mkdir job_tracker_agent
+cd job_tracker_agent
+
+.venv\Scripts\Activate.ps1 # Activate the virtual env
+
+```
+3). Clone repo and install packages
+
+```bash
+
+git clone https://github.com/cyprste2717218/job_advert_recorder_agent/
+
+uv lock # Install pinned package versions
+
+```
+
+4). Copy `.env.example` to `.env`:
+
+```bash
+cp .\env.example .\env\
+```
+
+5). Setup your accounts & API keys:
+
+5a). Go to [Google AI Studio](https://aistudio.google.com/app/apikey), create an API Key & write it to your `.env` under `GOOGLE_API_KEY`
+
+5b). Get your Composio API key and User ID
+- Log in to the [Composio dashboard](https://dashboard.composio.dev/login).
+- Go to Settings → API Keys and copy your Composio API key. Write this to `COMPOSIO_API_KEY` in `.env`.
+- Decide on a stable user identifier to scope sessions, often your email or a user ID. Use this for `COMPOSIO_USER_ID` in `.env`.
+
+6). Start the agent system!
+
+```bash
+adk run .
+```
+
 ## Current Limitations
 
 - **Incompatible with LinkedIn job postings**
