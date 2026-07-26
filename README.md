@@ -5,6 +5,8 @@
 ![Google ADK](https://img.shields.io/badge/Google%20ADK-2.0-4285F4?logo=google&logoColor=white)
 ![Playwright](https://img.shields.io/badge/Playwright-45ba4b?logo=playwright&logoColor=white)
 ![Composio MCP](https://img.shields.io/badge/Composio-MCP%20Server-6E56CF)
+![Ruff](https://img.shields.io/badge/Ruff-lint%20%26%20format-D7FF64?logo=ruff&logoColor=black)
+![Pyright](https://img.shields.io/badge/Pyright-type%20checked-3775A9?logo=python&logoColor=white)
 
 <!-- Add demo gif here -->
 
@@ -19,6 +21,7 @@ The tool is operated via the CLI, [see below for setup instructions](#local-setu
 - [Project Overview](#project-overview)
     - [Pipeline Overview](#pipeline-overview)
 - [Local Setup](#local-setup)
+- [Development](#development)
 - [Current Limitations](#current-limitations)
 
 ## Project Overview
@@ -106,6 +109,24 @@ cp .\env.example .\env\
 
 ```bash
 adk run .
+```
+
+## Development
+
+Linting/formatting is handled by [Ruff](https://docs.astral.sh/ruff/), and static type checking by [Pyright](https://microsoft.github.io/pyright/).
+
+```bash
+uv sync --group dev   # Install dev dependencies
+
+ruff check --fix .    # Lint
+ruff format .          # Format
+pyright                # Type check
+```
+
+Optionally, install the pre-commit hooks to run these automatically before each commit:
+
+```bash
+pre-commit install
 ```
 
 ## Current Limitations
