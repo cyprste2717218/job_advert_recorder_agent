@@ -11,7 +11,7 @@ flowchart TD
 
     N --> M{"**Node 0b (routing function)**\nDid the user choose to add\na new job entry?"}
 
-    M -- "Yes" --> R{"**Node 0d (routing function)**\nAre folder/workbook/sheet\ndetails already defined in config file?"}
+    M -- "Yes" --> R{"**Node 0d (routing function)**\nAre folder/workbook/sheet\ndetails already defined in `config.json` file?"}
 
     M -- "No" --> X["**Node 0c (function)**\nClose the persistent Playwright\nChromium context and halt\nthe agent system"]
 
@@ -31,7 +31,7 @@ flowchart TD
 
     E --> J["**Node 6 (agent)**\nRetrieve the column headers\nof the selected sheet"]
 
-    J --> K["**Node 7 (function)**\nWrite a new config file on the user's system\nstating the selected folder, workbook,\nsheet and sheet headers"]
+    J --> K["**Node 7 (function)**\nWrite a new `config.json` file on the user's system\nstating the selected folder, workbook,\nsheet and sheet headers"]
 
     K --> F
 
@@ -73,14 +73,14 @@ flowchart TD
 | 0a  | Python function         | Asks the user whether they want to add a new job entry or close out the agent system                                                                                                                                             |
 | 0b  | Routing (function)      | Checks the user's response from node 0a via StringRoute; routes to the existing folder/workbook/sheet/sheet headers config-check routing if adding an entry, or to node 0c if closing out                                        |
 | 0c  | Python function         | Closes the persistent Playwright Chromium context and halts the agent ADK system                                                                                                                                                 |
-| 0d  | Routing (function)      | Checks whether folder/workbook/sheet/sheet header details are already defined in the config file; routes to node 8 if defined, or to node 1 to begin the setup flow if not                                                       |
+| 0d  | Routing (function)      | Checks whether folder/workbook/sheet/sheet header details are already defined in the `config.json` file; routes to node 8 if defined, or to node 1 to begin the setup flow if not                                                       |
 | 1   | Python function         | Asks the user which folder in their OneDrive to look in for Excel workbooks                                                                                                                                                      |
 | 2   | Agent                   | Uses the Composio MCP server to list the spreadsheets found in that folder and returns their names to the user                                                                                                                   |
 | 3   | Python function         | Asks the user which workbook to use                                                                                                                                                                                              |
 | 4   | Agent                   | Retrieves the sheets within the selected workbook and returns the sheet names to the user                                                                                                                                        |
 | 5   | Python function         | Asks the user which sheet to use                                                                                                                                                                                                 |
-| 6   | Agent        | Retrieves the column headers of the selected sheet (from config file if already present, otherwise via Composio MCP Server) and passes them into node 9 to target extraction                                                                                                             |
-| 7   | Python function         | Writes a new config file on the user's system summarising the selected folder, spreadsheet name, sheet name and column headers                                                                                                   |
+| 6   | Agent        | Retrieves the column headers of the selected sheet (from `config.json` file if already present, otherwise via Composio MCP Server) and passes them into node 9 to target extraction                                                                                                             |
+| 7   | Python function         | Writes a new `config.json` file on the user's system summarising the selected folder, spreadsheet name, sheet name and column headers                                                                                                   |
 | 8   | Python function         | Asks the user for the page URL (job posting) to extract                                                                                                                                                                          |
 | 9   | Agent + Python function | Given a page URL and the sheet's column headers, reuses the persistent Chromium context to navigate to the page, extract the job-description content relevant to those fields, and build an in-memory record keyed by each field |
 | 10  | Routing (function)      | Checks confidence of the mapped record via a StringRoute; on low confidence or missing fields, routes back to node 9 to retry extraction (capped at 2 retries); otherwise proceeds to node 11                                    |
