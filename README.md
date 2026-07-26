@@ -1,6 +1,6 @@
 # Job Advert Recorder Agent
 
-![Python](https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white)
+![Python](https://img.shields.io/badge/Python-3.14%2B-3776AB?logo=python&logoColor=white)
 ![Pydantic](https://img.shields.io/badge/Pydantic-v2-E92063?logo=pydantic&logoColor=white)
 ![Google ADK](https://img.shields.io/badge/Google%20ADK-2.0-4285F4?logo=google&logoColor=white)
 ![Playwright](https://img.shields.io/badge/Playwright-45ba4b?logo=playwright&logoColor=white)
@@ -8,7 +8,7 @@
 
 <!-- Add demo gif here -->
 
-Never worry about manually copy pasting job advert details into spreadsheets again!
+**Never worry about manually copy pasting job advert details into spreadsheets again!**
 
 Job Advert Recorder Agent is a [graph-based](https://adk.dev/graphs/) agent pipeline using [Google ADK 2.0](https://adk.dev/2.0/) that extracts job description data from a URL and writes it into a row of a user's spreadsheet, auto-filling the relevant cell entries.
 The tool is operated via the CLI, [see below for setup instructions](#local-setup).
