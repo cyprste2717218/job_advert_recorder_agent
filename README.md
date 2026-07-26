@@ -39,9 +39,9 @@ If everything is looking right, then the Composio MCP Server adds a new row to y
 
 ```mermaid
 flowchart TD
-    Start([Start]) --> Setup["**Setup**\nLaunch browser context,\nconfigure folder/workbook/sheet"]
-    Setup --> Extract["**Extraction**\nNavigate to job URL, extract\nfields, confidence-check, retry if needed"]
-    Extract --> Write["**Write**\nAppend record to spreadsheet\nas a new row"]
+    Start([Start]) --> Setup["Setup<br/>Launch browser context,<br/>configure folder/workbook/sheet"]
+    Setup --> Extract["Extraction<br/>Navigate to job URL, extract<br/>fields, confidence-check, retry if needed"]
+    Extract --> Write["Write<br/>Append record to spreadsheet<br/>as a new row"]
     Write --> End([Done])
 
     classDef terminal fill:#f1f3f4,stroke:#5f6368,stroke-width:1px,color:#5f6368
