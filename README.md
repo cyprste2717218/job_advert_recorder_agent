@@ -20,6 +20,8 @@ The tool is operated via the CLI, [see below for setup instructions](#local-setu
 
 - [Project Overview](#project-overview)
     - [Pipeline Overview](#pipeline-overview)
+- [How to Use](#how-to-use)
+    - [Tracking a Different Workbook, Sheet or Columns](#tracking-a-different-workbook-sheet-or-columns)
 - [Local Setup](#local-setup)
 - [Development](#development)
 - [Current Limitations](#current-limitations)
@@ -57,6 +59,26 @@ flowchart TD
 ```
 
 For the full node-by-node flowchart and node summary table, see [ARCHITECTURE.md](ARCHITECTURE.md).
+
+## How to Use
+
+> Requires the project to be [set up locally](#local-setup) first.
+
+1. Activate your virtual env and run `adk run .` (see step 6 of [Local Setup](#local-setup)) to start the agent.
+2. On first run, you'll be prompted to pick a OneDrive folder, workbook, and sheet to track - these choices are cached in `config.json` so you won't be asked again on subsequent runs (unless you want to [track a different workbook/sheet](#tracking-a-different-workbook-sheet-or-columns)).
+3. Paste in the URL of the job posting you want to record.
+4. The agent extracts the job details, checks them against your sheet's column headers, and appends a new row to your spreadsheet - auto-filling the matching cells.
+
+### Tracking a Different Workbook, Sheet or Columns
+
+Once the initial setup flow has run once, the selected OneDrive folder, workbook, sheet, and sheet column headers are cached in a `config.json` file so they don't need to be re-selected on every run.
+
+There is currently no CLI-based way to change these once set (see [Current Limitations](#current-limitations)) - to point the agent at a different workbook, sheet, or set of columns, you have to manually edit (or delete) `config.json` yourself:
+
+- Edit the relevant field(s) directly to switch workbook/sheet/columns.
+- Alternatively, delete `config.json` entirely to re-trigger the full setup flow (folder → workbook → sheet → column headers) on the next run.
+
+Proper CLI-based config management is planned to prevent the need for this in future.
 
 ## Local Setup
 
