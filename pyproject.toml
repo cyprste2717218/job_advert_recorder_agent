@@ -3,6 +3,8 @@ name = "job-tracker-agent"
 version = "0.1.0"
 description = "Job Advert Recorder Agent"
 requires-python = ">=3.14"
+# playwright>=1.45 currently resolves to 1.61.0, which bundles Chromium
+# build 1228 (Chrome 149.0.7827.55) via `playwright install chromium`.
 dependencies = [
     "composio>=0.8",
     "google-adk>=2.0",

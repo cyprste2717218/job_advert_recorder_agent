@@ -13,6 +13,12 @@ from google.adk import Workflow
 from google.adk import Event
 from pydantic import BaseModel
 
+from sub_agents.handle_job_request_agent import response_job_agent
+
+from sub_agents.end_system_node import response_end_node
+
+import browser_manager
+
 load_dotenv()
 
 warnings.filterwarnings("ignore", message=".*BaseAuthenticatedTool.*")
@@ -28,16 +34,38 @@ if not COMPOSIO_API_KEY:
 if not COMPOSIO_USER_ID:
     raise ValueError("COMPOSIO_USER_ID is not set in the environment.")
 
-""" root_agent = Agent(
-    model='<FILL_IN_MODEL>',
-    name='root_agent',
-    description='A helpful assistant for user questions.',
-    instruction='Answer user questions to the best of your knowledge',
-) """
+class UserInput(BaseModel):
+   """Expected response structure from the user."""
+   user_response: str
+
+
+async def launch_chromium() -> None:
+    """Node 0: launches a persistent headless Chromium context via Playwright.
+
+    Reused across job URL extractions instead of relaunching per call; a
+    no-op if the context is already running (e.g. on a retry loop back to
+    this node).
+    """
+    await browser_manager.launch()
+
 
 def user_input_new_job_record():
-    yield RequestInput(message="Enter the job URL or type 'halt' to halt the system")
+    yield RequestInput(
+        message="Enter the job URL or type 'halt' to halt the system",
+        response_schema=UserInput
+        )
 
+def router_1(node_input: str):
+    user_input = node_input.user_response;
+
+    if user_input == "halt":
+        route = "END"
+    elif user_input.startswith('https://'):
+        route = "JOB"
+
+    # add error handling and else branch
+
+    return Event(route=route, output=user_input)
 
 job_tracker_agent = Workflow(
     name="root_agent",
@@ -45,8 +73,8 @@ job_tracker_agent = Workflow(
         ("START", launch_chromium, user_input_new_job_record, router_1),
         ( router_1,
            {
-               "JOB": response_1_job,
-               "END": response_2_end
+               "JOB": response_job_agent,
+               "END": response_end_node
            }
        )
     ],
