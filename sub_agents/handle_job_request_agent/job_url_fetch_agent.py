@@ -10,6 +10,6 @@ response_handle_job_url_fetch = Workflow(
     # update this
     name="response_handle_job_url_fetch",
     edges=[
-        ("START", handle_config_impl),
+        ("START", handle_job_url_fetch),
     ],
 )
