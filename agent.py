@@ -8,6 +8,7 @@ from google.adk.tools.mcp_tool.mcp_session_manager import StreamableHTTPConnecti
 from google.adk.tools.mcp_tool.mcp_toolset import McpToolset
 
 from google.adk.agents.llm_agent import Agent
+from google.adk.events import RequestInput
 from google.adk import Workflow
 from google.adk import Event
 from pydantic import BaseModel
@@ -34,12 +35,20 @@ if not COMPOSIO_USER_ID:
     instruction='Answer user questions to the best of your knowledge',
 ) """
 
+def user_input_new_job_record():
+    yield RequestInput(message="Enter the job URL or type 'halt' to halt the system")
+
 
 job_tracker_agent = Workflow(
     name="root_agent",
     edges=[
-        ("START", city_generator_agent, lookup_time_function,
-          city_report_agent, completed_message_function)
+        ("START", launch_chromium, user_input_new_job_record, router_1),
+        ( router_1,
+           {
+               "JOB": response_1_job,
+               "END": response_2_end
+           }
+       )
     ],
 )
 
