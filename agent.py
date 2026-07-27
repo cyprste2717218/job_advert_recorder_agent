@@ -5,7 +5,6 @@ from composio import Composio
 from dotenv import load_dotenv
 from google.adk.agents.llm_agent import Agent
 
-from google.adk.agents.llm_agent import Agent
 from google.adk.events import RequestInput
 from google.adk import Workflow
 from google.adk import Event

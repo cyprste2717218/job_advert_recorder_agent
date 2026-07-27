@@ -1,2 +1,2 @@
-from .handle_job_request_agent import response_job_agent
+from .handle_job_request_agent.agent import response_job_agent
 from .end_system_node import response_end_node
