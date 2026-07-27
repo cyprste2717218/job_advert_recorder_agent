@@ -31,11 +31,6 @@ if not COMPOSIO_API_KEY:
 if not COMPOSIO_USER_ID:
     raise ValueError("COMPOSIO_USER_ID is not set in the environment.")
 
-class UserInput(BaseModel):
-   """Expected response structure from the user."""
-   user_response: str
-
-
 async def system_start_user_message():
   """Tell user system is starting up"""
   yield Event(message="System is starting up...")
@@ -52,7 +47,7 @@ async def launch_chromium() -> None:
 def user_input_new_job_record():
     yield RequestInput(
         message="Enter the job URL or type 'halt' to halt the system",
-        response_schema=UserInput
+        response_schema=str
         )
 
 def router_1(node_input: str):
