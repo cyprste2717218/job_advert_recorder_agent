@@ -51,7 +51,7 @@ def user_input_new_job_record():
         )
 
 def router_1(node_input: str):
-    user_input = node_input.user_response;
+    user_input = node_input
 
     if user_input == "halt":
         route = "END"

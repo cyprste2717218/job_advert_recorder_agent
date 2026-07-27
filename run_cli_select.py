@@ -34,12 +34,34 @@ from __future__ import annotations
 import asyncio
 import json
 import sys
+import threading
 from typing import Any
 
 import click
 import questionary
 from google.adk.cli import cli as adk_cli
 from google.genai import types
+
+
+def _ask(question: questionary.Question) -> Any:
+  """Run a questionary prompt's .ask() in a fresh thread with its own event
+  loop.
+
+  ``_prompt_for_function_call`` is called synchronously (not awaited) from
+  inside ADK's already-running asyncio event loop. questionary/prompt_toolkit's
+  .ask() calls asyncio.run() internally, which raises "asyncio.run() cannot
+  be called from a running event loop" in that situation. Running it on a
+  separate thread gives it a loop-free thread to create its own loop in.
+  """
+  result: dict[str, Any] = {}
+
+  def _worker() -> None:
+    result["value"] = question.ask()
+
+  worker = threading.Thread(target=_worker)
+  worker.start()
+  worker.join()
+  return result.get("value")
 
 
 def _extract_choices(schema: Any, payload: Any) -> tuple[list[Any] | None, bool]:
@@ -70,9 +92,9 @@ def _prompt_for_function_call_select(
     hint = tool_confirmation.get("hint", "")
     original_fc = args.get("originalFunctionCall", {})
     original_name = original_fc.get("name", "unknown")
-    confirmed = questionary.confirm(
-        hint or f"Confirm {original_name}?", default=False
-    ).ask()
+    confirmed = _ask(
+        questionary.confirm(hint or f"Confirm {original_name}?", default=False)
+    )
     response: dict[str, Any] = {"confirmed": bool(confirmed)}
 
   elif fc_name == adk_cli._REQUEST_INPUT:
@@ -82,11 +104,15 @@ def _prompt_for_function_call_select(
     choices, is_multi = _extract_choices(schema, payload)
 
     if choices and is_multi:
-      result = questionary.checkbox(message, choices=choices).ask()
+      result = _ask(questionary.checkbox(message, choices=choices))
     elif choices:
-      result = questionary.select(message, choices=choices).ask()
+      result = _ask(questionary.select(message, choices=choices))
     else:
-      raw = questionary.text(message).ask()
+      raw = _ask(questionary.text(message))
+      if raw is None:
+        # User cancelled (Ctrl+C/Esc) -- fall back to an empty string so
+        # downstream response_schema=str validation doesn't choke on None.
+        raw = ""
       try:
         result = json.loads(raw)
       except (json.JSONDecodeError, ValueError, TypeError):
@@ -96,7 +122,7 @@ def _prompt_for_function_call_select(
 
   else:
     click.echo(f"[HITL] Waiting for input for {fc_name}({args})")
-    raw = questionary.text("[user]: ").ask()
+    raw = _ask(questionary.text("[user]: "))
     response = {"result": raw}
 
   return types.Content(

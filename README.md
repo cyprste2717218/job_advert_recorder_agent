@@ -7,6 +7,9 @@
 [![Composio MCP](https://img.shields.io/badge/Composio-MCP%20Server-6E56CF)](https://composio.dev/toolkits/excel/framework/google-adk)
 [![Ruff](https://img.shields.io/badge/Ruff-lint%20%26%20format-D7FF64?logo=ruff&logoColor=black)](https://docs.astral.sh/ruff/)
 [![Pyright](https://img.shields.io/badge/Pyright-type%20checked-3775A9?logo=python&logoColor=white)](https://microsoft.github.io/pyright/)
+[![uv](https://img.shields.io/badge/uv-package%20manager-DE5FE9?logo=uv&logoColor=white)](https://docs.astral.sh/uv/)
+[![pre-commit](https://img.shields.io/badge/pre--commit-enabled-76B900?logo=pre-commit&logoColor=white)](https://pre-commit.com/)
+[![Questionary](https://img.shields.io/badge/Questionary-interactive%20CLI-FFC107)](https://github.com/tmbo/questionary)
 
 <!-- Add demo gif here -->
 
@@ -64,7 +67,7 @@ For the full node-by-node flowchart and node summary table, see [ARCHITECTURE.md
 
 > Requires the project to be [set up locally](#local-setup) first.
 
-1. Activate your virtual env and run `adk run .` (see step 6 of [Local Setup](#local-setup)) to start the agent.
+1. Activate your virtual env and run `uv run python run_cli_select.py .` (see step 6 of [Local Setup](#local-setup)) to start the agent.
 2. On first run, you'll be prompted to pick a OneDrive folder, workbook, and sheet to track - these choices are cached in `config.json` so you won't be asked again on subsequent runs (unless you want to [track a different workbook/sheet](#tracking-a-different-workbook-sheet-or-columns)).
 3. Paste in the URL of the job posting you want to record.
 4. The agent extracts the job details, checks them against your sheet's column headers, and appends a new row to your spreadsheet - auto-filling the matching cells.
@@ -130,8 +133,10 @@ cp .\.env.example .\.env
 6). Start the agent system!
 
 ```bash
-adk run .
+uv run python run_cli_select.py .
 ```
+
+`run_cli_select.py` is a drop-in replacement for `adk run` - it delegates to ADK's own CLI runner (all of ADK's flags, session persistence, etc. still work) but swaps the plain `input()` prompt for an interactive `questionary` select/multi-select/checkbox UI.
 
 ## Development
 

@@ -6,9 +6,9 @@ def handle_job_url_fetch() -> None:
 
 
 
-response_handle_job_url_fetch = Workflow(
+response_job_url_fetch_node = Workflow(
     # update this
-    name="response_handle_job_url_fetch",
+    name="response_job_url_fetch_node",
     edges=[
         ("START", handle_job_url_fetch),
     ],

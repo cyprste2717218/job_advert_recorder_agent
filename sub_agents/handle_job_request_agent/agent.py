@@ -38,7 +38,7 @@ def checking_config_check_result(node_input: bool):
         message = "Config is missing required fields."
 
     yield Event(message=message)
-    yield Event(route=route)
+    yield Event(route=route, output=route)
     
     
 
@@ -62,7 +62,7 @@ async def checking_details_user_message():
 
 
 def router_2(node_input: str):
-    return Event(route=node_input.route)
+    return Event(route=node_input)
 
 
 
