@@ -5,15 +5,17 @@
 ```mermaid
 %%{init: {"themeVariables": {"fontSize": "24px"}}}%%
 flowchart TD
-    Start([Start]) --> Z["**Node 0 (function)**\nLaunch a persistent headless Chromium\ncontext via Playwright (reused across job URLs,\nnot relaunched per extraction)"]
+    Start([Start]) --> S["**Node 0 (function)**\nTell the user the system\nis starting up"]
 
-    Z --> N["**Node 0a (function)**\nAsk the user: add a new job entry,\nor close out the agent system?"]
+    S --> Z["**Node 0a (function)**\nLaunch a persistent headless Chromium\ncontext via Playwright (reused across job URLs,\nnot relaunched per extraction)"]
 
-    N --> M{"**Node 0b (routing function)**\nDid the user choose to add\na new job entry?"}
+    Z --> N["**Node 0b (function)**\nAsk the user: add a new job entry,\nor close out the agent system?"]
 
-    M -- "Yes" --> R{"**Node 0d (routing function)**\nAre folder/workbook/sheet\ndetails already defined in `config.json` file?"}
+    N --> M{"**Node 0c (routing function)**\nDid the user choose to add\na new job entry?"}
 
-    M -- "No" --> X["**Node 0c (function)**\nClose the persistent Playwright\nChromium context and halt\nthe agent system"]
+    M -- "Yes" --> R{"**Node 0e (routing function)**\nAre folder/workbook/sheet\ndetails already defined in `config.json` file?"}
+
+    M -- "No" --> X["**Node 0d (function)**\nClose the persistent Playwright\nChromium context and halt\nthe agent system"]
 
     X --> Fin([Halted])
 
@@ -54,7 +56,7 @@ flowchart TD
     classDef decision fill:#fef7e0,stroke:#f9ab00,stroke-width:1px,color:#202124,font-size:24px
 
     class Start,End,Fin terminal
-    class Z,N,X,A,B,C,D,E,F,G,I,J,K,L process
+    class S,Z,N,X,A,B,C,D,E,F,G,I,J,K,L process
     class R,Q,M decision
 
     linkStyle default stroke:#595959,stroke-width:1px
@@ -69,11 +71,12 @@ flowchart TD
 
 | #   | Type                    | Responsibility                                                                                                                                                                                                                   |
 | --- | ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 0   | Python function         | Launches a persistent headless Chromium context via Playwright once, kept alive and reused across job URL extractions instead of relaunching per call                                                                            |
-| 0a  | Python function         | Asks the user whether they want to add a new job entry or close out the agent system                                                                                                                                             |
-| 0b  | Routing (function)      | Checks the user's response from node 0a via StringRoute; routes to the existing folder/workbook/sheet/sheet headers config-check routing if adding an entry, or to node 0c if closing out                                        |
-| 0c  | Python function         | Closes the persistent Playwright Chromium context and halts the agent ADK system                                                                                                                                                 |
-| 0d  | Routing (function)      | Checks whether folder/workbook/sheet/sheet header details are already defined in the `config.json` file; routes to node 8 if defined, or to node 1 to begin the setup flow if not                                                       |
+| 0   | Python function         | Tells the user the agent system is starting up                                                                                                                                                                                   |
+| 0a  | Python function         | Launches a persistent headless Chromium context via Playwright once, kept alive and reused across job URL extractions instead of relaunching per call                                                                            |
+| 0b  | Python function         | Asks the user whether they want to add a new job entry or close out the agent system                                                                                                                                             |
+| 0c  | Routing (function)      | Checks the user's response from node 0b via StringRoute; routes to the existing folder/workbook/sheet/sheet headers config-check routing if adding an entry, or to node 0d if closing out                                        |
+| 0d  | Python function         | Closes the persistent Playwright Chromium context and halts the agent ADK system                                                                                                                                                 |
+| 0e  | Routing (function)      | Checks whether folder/workbook/sheet/sheet header details are already defined in the `config.json` file; routes to node 8 if defined, or to node 1 to begin the setup flow if not                                                       |
 | 1   | Python function         | Asks the user which folder in their OneDrive to look in for Excel workbooks                                                                                                                                                      |
 | 2   | Agent                   | Uses the Composio MCP server to list the spreadsheets found in that folder and returns their names to the user                                                                                                                   |
 | 3   | Python function         | Asks the user which workbook to use                                                                                                                                                                                              |

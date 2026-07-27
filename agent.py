@@ -4,8 +4,6 @@ import warnings
 from composio import Composio
 from dotenv import load_dotenv
 from google.adk.agents.llm_agent import Agent
-from google.adk.tools.mcp_tool.mcp_session_manager import StreamableHTTPConnectionParams
-from google.adk.tools.mcp_tool.mcp_toolset import McpToolset
 
 from google.adk.agents.llm_agent import Agent
 from google.adk.events import RequestInput
@@ -39,6 +37,10 @@ class UserInput(BaseModel):
    user_response: str
 
 
+async def system_start_user_message():
+  """Tell user system is starting up"""
+  yield Event(message="System is starting up...")
+
 async def launch_chromium() -> None:
     """Node 0: launches a persistent headless Chromium context via Playwright.
 
@@ -47,8 +49,7 @@ async def launch_chromium() -> None:
     this node).
     """
     await browser_manager.launch()
-
-
+    
 def user_input_new_job_record():
     yield RequestInput(
         message="Enter the job URL or type 'halt' to halt the system",
@@ -70,7 +71,7 @@ def router_1(node_input: str):
 job_tracker_agent = Workflow(
     name="root_agent",
     edges=[
-        ("START", launch_chromium, user_input_new_job_record, router_1),
+        ("START", system_start_user_message, launch_chromium, user_input_new_job_record, router_1),
         ( router_1,
            {
                "JOB": response_job_agent,

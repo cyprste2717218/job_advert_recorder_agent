@@ -1,20 +1,14 @@
-""" root_agent = Agent(
-    model='<FILL_IN_MODEL>',
-    name='root_agent',
-    description='A helpful assistant for user questions.',
-    instruction='Answer user questions to the best of your knowledge',
-) """
+from google.adk import Workflow
+
+
+def handle_job_request() -> None:
+    """Placeholder node. TODO: implement job record handling."""
+
 
 response_job_agent = Workflow(
-	# update this
+    # update this
     name="response_job_agent",
     edges=[
-        ("START", launch_chromium, user_input_new_job_record, router_1),
-        ( router_1,
-           {
-               "JOB": response_job_agent,
-               "END": response_end_node
-           }
-       )
+        ("START", handle_job_request),
     ],
 )
