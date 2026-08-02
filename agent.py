@@ -4,6 +4,7 @@ import warnings
 from composio import Composio
 from dotenv import load_dotenv
 from google.adk.agents.llm_agent import Agent
+from google.adk.agents.context import Context
 
 from google.adk.events import RequestInput
 from google.adk import Workflow
@@ -46,16 +47,16 @@ async def launch_chromium() -> None:
     
 def user_input_new_job_record():
     yield RequestInput(
-        message="Enter the job URL or type 'halt' to halt the system",
+        message="Ready to start the system? Type 'yes' or type 'halt' to halt the system",
         response_schema=str
         )
 
-def router_1(node_input: str):
+def router_1(node_input: str, ctx: Context):
     user_input = node_input
 
     if user_input == "halt":
         route = "END"
-    elif user_input.startswith('https://'):
+    elif user_input == "yes":
         route = "JOB"
 
     # add error handling and else branch

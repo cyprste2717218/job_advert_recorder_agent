@@ -14,9 +14,51 @@ from composio import Composio
 from dotenv import load_dotenv
 from google.genai import types
 from pydantic import BaseModel
+from pathlib import Path
+
+from .job_url_fetch_agent import response_job_url_fetch_node
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+CONFIG_PATH = PROJECT_ROOT / "config.json"
+
+REQUIRED_FIELDS = {"spreadsheet_id", "worksheet_name", "working_dir"}
 
 load_dotenv()
 
+def config_check_present_check():
+    """Return an Event output on whether config.json exists with the required fields.
+
+    Shared by response_job_agent (agent.py) and this module's own
+    post-write verification step; import from here rather than redefining."""
+
+    if not CONFIG_PATH.is_file():
+        return Event(output=False)
+
+    try:
+        data = json.loads(CONFIG_PATH.read_text())
+    except json.JSONDecodeError:
+        return Event(output=False)
+
+    return Event(output=REQUIRED_FIELDS.issubset(data.keys()))
+
+def checking_config_check_result(node_input: bool):
+    """Update the user on the result of the config check and forward the response to the parent Workflow (response_job_agent)"""
+
+    if node_input == False:
+        route = "False"
+    else:
+        route = "True"
+
+    if route == "True":
+        message = "All good, config is present."
+    else:
+        message = "Config is missing required fields."
+
+    yield Event(message=message)
+    yield Event(output=route)
+
+def config_check_router(node_input: str):
+    return Event(route=node_input)
 
 def guard_structured_output(state_key: str):
     """after_model_callback that catches a final response that isn't valid
@@ -174,7 +216,7 @@ _session = composio_client.sessions.create(
     toolkits=["excel", "one_drive"],
     tools={
         "excel": {"enable": ["EXCEL_LIST_FILES", "EXCEL_LIST_WORKSHEETS", "EXCEL_GET_WORKSHEET_USED_RANGE"]},
-        "one_drive": {"enable": ["ONE_DRIVE_LIST_DRIVES", "ONE_DRIVE_LIST_FOLDER_CHILDREN"]},
+        "one_drive": {"enable": ["ONE_DRIVE_LIST_DRIVES"]},
     },
     preload={
         "tools": [
@@ -182,7 +224,6 @@ _session = composio_client.sessions.create(
             "EXCEL_LIST_WORKSHEETS",
             "EXCEL_GET_WORKSHEET_USED_RANGE",
             "ONE_DRIVE_LIST_DRIVES",
-            "ONE_DRIVE_LIST_FOLDER_CHILDREN",
         ]
     },
     mcp=True,
@@ -199,6 +240,12 @@ composio_toolset = McpToolset(
 class NamedItem(BaseModel):
     id: str
     name: str
+
+
+class WorkbookItem(BaseModel):
+    id: str
+    name: str
+    path: str
 
 
 REQUIRED_TOOLKITS = ["one_drive", "excel"]
@@ -246,16 +293,25 @@ def write_config_file(ctx: Context):
     project_root = Path(__file__).resolve().parent.parent.parent
     config_path = project_root / "config.json"
 
+    workbook_path = ctx.state.get("selected_workbook_path", "")
+    working_dir = workbook_path.rsplit("/", 1)[0] if "/" in workbook_path else ""
+
     config = {
         "spreadsheet_id": ctx.state.get("selected_workbook_id"),
         "worksheet_name": ctx.state.get("selected_sheet_name"),
-        "working_dir": ctx.state.get("selected_folder_path"),
+        "working_dir": working_dir,
         "drive_id": ctx.state.get("selected_drive_id"),
         "sheet_headers": ctx.state.get("sheet_headers", []),
     }
     config_path.write_text(json.dumps(config, indent=2))
 
-    yield Event(message="Saved folder/workbook/sheet configuration to config.json.")
+    # Downstream nodes (e.g. response_job_url_fetch_node) read "working_dir"
+    # regardless of whether config came from this setup flow or was loaded
+    # from an existing config.json (see load_config_into_context), so stash
+    # it under the same key here too.
+    ctx.state["working_dir"] = working_dir
+
+    yield Event(message="Saved workbook/sheet configuration to config.json.")
     yield Event(output=config)
 
 
@@ -269,18 +325,11 @@ def user_input_sheet(node_input):
 
 
 def user_input_workbook(node_input):
-    choices = [w.get("name", "unknown") for w in node_input]
+    choices = [
+        f"{w.get('name', 'unknown')} ({w.get('path', 'unknown')})" for w in node_input
+    ]
     yield RequestInput(
         message="Choose a workbook",
-        response_schema=str,
-        payload={"choices": choices},
-        )
-
-
-def user_input_folder(node_input):
-    choices = [f.get("name", "unknown") for f in node_input]
-    yield RequestInput(
-        message="What folder in your OneDrive should I look in?",
         response_schema=str,
         payload={"choices": choices},
         )
@@ -304,19 +353,21 @@ def resolve_drive_selection(node_input: str, ctx: Context):
     yield Event(output=node_input)
 
 
-def resolve_folder_selection(node_input: str, ctx: Context):
-    """Stash the user-picked folder path in state."""
-    ctx.state["selected_folder_path"] = node_input
-
-    yield Event(output=node_input)
-
-
 def resolve_workbook_selection(node_input: str, ctx: Context):
-    """Resolve the user-picked workbook name to an id and stash it in state."""
+    """Resolve the user-picked "name (path)" choice to a workbook and stash
+    its id/name/path in state."""
     workbooks = ctx.state.get("onedrive_workbooks", [])
-    workbook = next((w for w in workbooks if w.get("name") == node_input), None)
+    workbook = next(
+        (
+            w
+            for w in workbooks
+            if f"{w.get('name', 'unknown')} ({w.get('path', 'unknown')})" == node_input
+        ),
+        None,
+    )
     ctx.state["selected_workbook_id"] = workbook["id"] if workbook else None
-    ctx.state["selected_workbook_name"] = node_input
+    ctx.state["selected_workbook_name"] = workbook["name"] if workbook else node_input
+    ctx.state["selected_workbook_path"] = workbook["path"] if workbook else ""
 
     yield Event(output=node_input)
 
@@ -347,36 +398,12 @@ retrieve_onedrive_drives = Agent(
 )
 
 
-retrieve_folders = Agent(
-    name="retrieve_folders",
-    model=MODEL,
-    mode="single_turn",
-    tools=[composio_toolset],
-    output_schema=list[NamedItem],
-    output_key="onedrive_folders",
-    before_model_callback=require_tool_before_reply("ONE_DRIVE_LIST_FOLDER_CHILDREN"),
-    after_model_callback=guard_structured_output("onedrive_folders"),
-    instruction="""
-    You have access to Composio tools via MCP.
-    CRITICAL: For the user's request, you MUST exclusively call the 'ONE_DRIVE_LIST_FOLDER_CHILDREN' tool.
-    Do not attempt to answer using general knowledge or seek other tools.
-    Always prioritize tool execution as your very first step.
-
-    Call the tool with drive_id={selected_drive_id}. If selected_drive_id is
-    None, call the tool with use_me_drive=True and no drive_id instead.
-
-    After the tool returns, respond with only the entries that are folders, as
-    id/name pairs.
-    """,
-)
-
-
 retrieve_workbooks = Agent(
     name="retrieve_workbooks",
     model=MODEL,
     mode="single_turn",
     tools=[composio_toolset],
-    output_schema=list[NamedItem],
+    output_schema=list[WorkbookItem],
     output_key="onedrive_workbooks",
     before_model_callback=require_tool_before_reply("EXCEL_LIST_FILES"),
     after_model_callback=guard_structured_output("onedrive_workbooks"),
@@ -386,11 +413,13 @@ retrieve_workbooks = Agent(
     Do not attempt to answer using general knowledge or seek other tools.
     Always prioritize tool execution as your very first step.
 
-    The user's message is the folder path to list files in. Call the tool
-    with drive_id={selected_drive_id} and that folder path.
+    Call the tool with drive_id={selected_drive_id} to list every workbook on
+    the drive, searching recursively across all folders rather than a single
+    folder.
 
     After the tool returns, respond with only the files whose name ends in
-    .xlsx, .xlsm, or .xls, as id/name pairs.
+    .xlsx, .xlsm, or .xls, as id/name/path triples, where path is the file's
+    full path within the drive (e.g. "/Documents/Jobs/Tracker.xlsx").
     """,
 )
 
@@ -451,7 +480,6 @@ check_onedrive_drives = raise_if_tool_error(
         "account to set it up, then try again."
     ),
 )
-check_onedrive_folders = raise_if_tool_error("onedrive_folders")
 check_onedrive_workbooks = raise_if_tool_error("onedrive_workbooks")
 check_workbook_sheets = raise_if_tool_error("workbook_sheets")
 check_sheet_headers = raise_if_tool_error("sheet_headers")
@@ -470,13 +498,6 @@ response_handle_config_impl_node = Workflow(
         (
             user_input_drive,
             resolve_drive_selection,
-            retrieve_folders,
-            check_onedrive_folders,
-        ),
-        (check_onedrive_folders, {"retry": retrieve_folders, "ok": user_input_folder}),
-        (
-            user_input_folder,
-            resolve_folder_selection,
             retrieve_workbooks,
             check_onedrive_workbooks,
         ),
@@ -495,5 +516,6 @@ response_handle_config_impl_node = Workflow(
             check_sheet_headers,
         ),
         (check_sheet_headers, {"retry": retrieve_sheet_headers, "ok": write_config_file}),
+        (write_config_file, config_check_present_check, checking_config_check_result),
     ],
 )

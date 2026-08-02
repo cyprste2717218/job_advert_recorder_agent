@@ -19,17 +19,15 @@ flowchart TD
 
     X --> Fin([Halted])
 
-    R -- "Defined" --> F["**Node 11 (function)**\nAsk user for the page URL (job posting)"]
+    R -- "Defined" --> W["**Node 0f (function)**\nLoad drive/folder/workbook/sheet/header\ndetails from `config.json` into Context"]
+
+    W --> F["**Node 11 (function)**\nAsk user for the page URL (job posting)"]
 
     R -- "Not defined" --> A["**Node 1 (agent)**\nUse Composio MCP server to list\nthe OneDrive drives available\nto the user"]
 
     A --> A2["**Node 2 (function)**\nAsk user which OneDrive\ndrive to use"]
 
-    A2 --> B["**Node 3 (agent)**\nUse Composio MCP server to list\nthe folders within the selected drive"]
-
-    B --> B2["**Node 4 (function)**\nAsk user which folder to look in\nfor Excel workbooks"]
-
-    B2 --> C["**Node 5 (agent)**\nUse Composio MCP server to list spreadsheets\nin that folder and return their names to the user"]
+    A2 --> C["**Node 5 (agent)**\nUse Composio MCP server to list spreadsheets\n(.xlsx, .xlsm, or .xls) in the root folder\nof the chosen drive and return their names to the user"]
 
     C --> C2["**Node 6 (function)**\nAsk user which workbook to use"]
 
@@ -43,26 +41,24 @@ flowchart TD
 
     K --> F
 
-    F --> G["**Node 12 (agent + function)**\nNavigate to the job page and extract\ncontent matching the sheet's column\nheaders into an in-memory record"]
-
-    E -. "column headers\n(targeted extraction)" .-> G
+    F --> G["**Node 12 (agent + function)**\nNavigate to the job page and extract\ncontent matching the sheet's column\nheaders retrieved from context into an in-memory record"]
 
     G --> Q{"**Node 13 (routing function)**\nConfidence check on mapped record\n(StringRoute)"}
-
-    Q -- "Low confidence /\nmissing fields (retry, max 2x)" --> G
 
     Q -- "Confident" --> I["**Node 14 (agent)**\nAccess the selected sheet\nand write the in-memory record\nas a new row via Composio MCP server"]
 
     I --> L["**Node 15 (function)**\nTell the user that the spreadsheet\nhas been updated"]
 
-    L --> End([Done])
+    L -.-> LB(["Next job entry:\nback to Node 12"])
+
+    Q -- "Low confidence /\nmissing fields" --> RT(["Retry Node 12\n(max 2x)"])
 
     classDef terminal fill:#f1f3f4,stroke:#5f6368,stroke-width:1px,color:#5f6368,font-size:24px
     classDef process fill:#e8f0fe,stroke:#bdc1c6,stroke-width:1px,color:#202124,font-size:24px
     classDef decision fill:#fef7e0,stroke:#f9ab00,stroke-width:1px,color:#202124,font-size:24px
 
-    class Start,End,Fin terminal
-    class S,Z,N,X,A,A2,B,B2,C,C2,D,D2,E,F,G,I,K,L process
+    class Start,Fin,RT,LB terminal
+    class S,Z,N,X,A,A2,C,C2,D,D2,E,F,G,I,K,L,W process
     class R,Q,M decision
 
     linkStyle default stroke:#595959,stroke-width:1px
@@ -82,19 +78,18 @@ flowchart TD
 | 0b  | Python function         | Asks the user whether they want to add a new job entry or close out the agent system                                                                                                                                             |
 | 0c  | Routing (function)      | Checks the user's response from node 0b via StringRoute; routes to the existing folder/workbook/sheet/sheet headers config-check routing if adding an entry, or to node 0d if closing out                                        |
 | 0d  | Python function         | Closes the persistent Playwright Chromium context and halts the agent ADK system                                                                                                                                                 |
-| 0e  | Routing (function)      | Checks whether drive/folder/workbook/sheet/sheet header details are already defined in the `config.json` file; routes to node 11 if defined, or to node 1 to begin the setup flow if not                                                  |
+| 0e  | Routing (function)      | Checks whether drive/folder/workbook/sheet/sheet header details are already defined in the `config.json` file; routes to node 0f if defined, or to node 1 to begin the setup flow if not                                                  |
+| 0f  | Python function         | Loads the drive/folder/workbook/sheet/sheet header details from `config.json` into Context (`ctx.state`) so downstream nodes can read them the same way they would after the setup flow                                        |
 | 1   | Agent                   | Uses the Composio MCP server to list the OneDrive drives available to the user                                                                                                                                                   |
 | 2   | Python function         | Asks the user which OneDrive drive to use                                                                                                                                                                                        |
-| 3   | Agent                   | Uses the Composio MCP server to list the folders within the selected drive                                                                                                                                                       |
-| 4   | Python function         | Asks the user which folder to look in for Excel workbooks                                                                                                                                                                        |
-| 5   | Agent                   | Uses the Composio MCP server to list the spreadsheets found in that folder and returns their names to the user                                                                                                                   |
+| 5   | Agent                   | Uses the Composio MCP server to list the spreadsheets (.xlsx, .xlsm, or .xls) found in the root folder of the chosen drive and returns their names to the user                                                                   |
 | 6   | Python function         | Asks the user which workbook to use                                                                                                                                                                                              |
 | 7   | Agent                   | Retrieves the sheets within the selected workbook and returns the sheet names to the user                                                                                                                                        |
 | 8   | Python function         | Asks the user which sheet to use                                                                                                                                                                                                 |
-| 9   | Agent                   | Retrieves the column headers of the selected sheet via the Composio MCP server and passes them into node 12 to target extraction                                                                                                 |
+| 9   | Agent                   | Retrieves the column headers of the selected sheet via the Composio MCP server                                                                                                                                                   |
 | 10  | Python function         | Writes a new `config.json` file on the user's system summarising the selected drive, folder, spreadsheet name, sheet name and column headers                                                                                            |
 | 11  | Python function         | Asks the user for the page URL (job posting) to extract                                                                                                                                                                          |
-| 12  | Agent + Python function | Given a page URL and the sheet's column headers, reuses the persistent Chromium context to navigate to the page, extract the job-description content relevant to those fields, and build an in-memory record keyed by each field |
+| 12  | Agent + Python function | Given a page URL and the sheet's column headers retrieved from context, reuses the persistent Chromium context to navigate to the page, extract the job-description content relevant to those fields, and build an in-memory record keyed by each field |
 | 13  | Routing (function)      | Checks confidence of the mapped record via a StringRoute; on low confidence or missing fields, routes back to node 12 to retry extraction (capped at 2 retries); otherwise proceeds to node 14                                   |
 | 14  | Agent                   | Writes the in-memory record to the selected sheet as a new row                                                                                                                                                                   |
 | 15  | Python function         | Tells the user that the spreadsheet has been updated                                                                                                                                                                             |
