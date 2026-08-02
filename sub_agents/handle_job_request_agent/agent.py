@@ -23,7 +23,6 @@ from .handle_config_impl_agent import (
 )
 from .job_url_fetch_agent import (
     response_job_url_fetch_node,
-    job_url_fetch_result_router,
     job_url_fetch_done,
 )
 
@@ -122,6 +121,12 @@ def successful_context_load_router(node_input: str):
     if node_input in ("True", "Error"):
         return Event(route="Proceed")
     return Event(route=node_input)
+
+def job_url_fetch_result_router(node_input: str):
+    if node_input == "DONE":
+        return Event(route="DONE")
+    else:
+        return Event(route="RETRY")
 
 
 response_job_agent = Workflow(
