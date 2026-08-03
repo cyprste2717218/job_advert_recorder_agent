@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-A [Google ADK 2.0](https://adk.dev/2.0/) `Workflow` (graph-based agent pipeline) that takes a job posting URL, extracts the job details via a headless Playwright/Chromium session, and appends them as a new row in the user's Excel workbook (via the Composio MCP server for the Excel/OneDrive integration).
+A [Google ADK 2.0](https://adk.dev/2.0/) `Workflow` (graph-based agent pipeline) that takes a job posting URL, extracts the job details via a headless Playwright/Chromium session, and appends them as a new row in the user's Excel workbook (via the [Composio MCP server](https://composio.dev/) using for the [Excel](https://docs.composio.dev/toolkits/excel)/[OneDrive](https://docs.composio.dev/toolkits/one_drive) integration).
 
 Entry point: `agent.py` → `root_agent` (a `Workflow`). Run via `run_cli_select.py`, not `adk run` directly (see below).
 
