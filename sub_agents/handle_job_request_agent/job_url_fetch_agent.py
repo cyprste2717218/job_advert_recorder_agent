@@ -8,6 +8,7 @@ from google.genai import types
 from pydantic import BaseModel
 
 import browser_manager
+from .update_spreadsheet_node import response_update_spreadsheet_node
 
 
 MAX_JOB_URL_FETCH_ATTEMPTS = 3
@@ -280,6 +281,7 @@ response_job_url_fetch_node = Workflow(
         ),
         (check_job_spec_details, {"retry": extract_job_spec_details_agent, "ok": verify_job_spec_details_agent}),
         (verify_job_spec_details_agent, route_job_spec_verification),
-        (route_job_spec_verification, {"retry": extract_job_spec_details_agent, "ok": handle_job_url_fetch}),
+        (route_job_spec_verification, {"retry": extract_job_spec_details_agent, "ok": response_update_spreadsheet_node}),
+        (response_update_spreadsheet_node, handle_job_url_fetch),
     ],
 )
