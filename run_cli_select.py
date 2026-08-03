@@ -52,6 +52,16 @@ def _ask(question: questionary.Question) -> Any:
   .ask() calls asyncio.run() internally, which raises "asyncio.run() cannot
   be called from a running event loop" in that situation. Running it on a
   separate thread gives it a loop-free thread to create its own loop in.
+
+  questionary swallows Ctrl+C/Esc internally and reports it by returning
+  None from .ask() rather than raising -- so it never reaches this thread's
+  caller as a KeyboardInterrupt. Treated here as "quit the CLI": routing a
+  cancellation back through the Workflow graph as an ordinary route can't
+  stop ADK's outer `run_interactively` loop (it only exits on a literal
+  "exit" typed at its own top-level prompt), so instead this exits the
+  process directly. That in turn unwinds through the exit and triggers
+  browser_manager's atexit hook, so the Playwright/Chromium context still
+  gets closed on the way out.
   """
   result: dict[str, Any] = {}
 
@@ -61,7 +71,12 @@ def _ask(question: questionary.Question) -> Any:
   worker = threading.Thread(target=_worker)
   worker.start()
   worker.join()
-  return result.get("value")
+
+  if result.get("value") is None:
+    click.echo("\nCancelled (Ctrl+C) -- shutting down...")
+    sys.exit(0)
+
+  return result["value"]
 
 
 def _extract_choices(schema: Any, payload: Any) -> tuple[list[Any] | None, bool]:
@@ -109,10 +124,6 @@ def _prompt_for_function_call_select(
       result = _ask(questionary.select(message, choices=choices))
     else:
       raw = _ask(questionary.text(message))
-      if raw is None:
-        # User cancelled (Ctrl+C/Esc) -- fall back to an empty string so
-        # downstream response_schema=str validation doesn't choke on None.
-        raw = ""
       try:
         result = json.loads(raw)
       except (json.JSONDecodeError, ValueError, TypeError):

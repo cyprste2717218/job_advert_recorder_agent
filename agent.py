@@ -1,4 +1,5 @@
 import os
+import re
 import warnings
 
 from composio import Composio
@@ -47,21 +48,26 @@ async def launch_chromium() -> None:
     
 def user_input_new_job_record():
     yield RequestInput(
-        message="Ready to start the system? Type 'yes' or type 'halt' to halt the system",
+        message="Ready to start the system? Type 'yes' or type 'halt' to halt the system:",
         response_schema=str
         )
 
 def router_1(node_input: str, ctx: Context):
+    
+    user_message = ""
     user_input = node_input
 
-    if user_input == "halt":
-        route = "END"
-    elif user_input == "yes":
+
+    if re.fullmatch(r"[Yy][Ee][Ss]", user_input):
         route = "JOB"
+    elif user_input == "halt":
+        route = "END"
+    else: 
+        route = "INVALID"
+        user_message = "Didn't get that, try again"
 
-    # add error handling and else branch
 
-    return Event(route=route, output=user_input)
+    return Event(route=route, output=user_input, message=user_message)
 
 job_tracker_agent = Workflow(
     name="root_agent",
@@ -70,7 +76,8 @@ job_tracker_agent = Workflow(
         ( router_1,
            {
                "JOB": response_job_agent,
-               "END": response_end_node
+               "END": response_end_node,
+               "INVALID": user_input_new_job_record
            }
        )
     ],

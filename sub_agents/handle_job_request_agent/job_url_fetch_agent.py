@@ -15,20 +15,22 @@ MAX_JOB_URL_FETCH_ATTEMPTS = 3
 MAX_EXTRACTION_ATTEMPTS = 3
 
 def router_1(node_input: str, ctx: Context):
+    user_message = ""
     user_input = node_input
 
     if user_input.startswith('https://'):
         result = "JOB"
         ctx.state["job_url"] = user_input
+    else:
+        result = "INVALID"
+        user_message = "Not a valid URL, try again"
 
-    # add error handling and else branch
-
-    return Event(output=result)
+    return Event(route=result, message=user_message)
 
 
 def user_input_new_job_record():
     yield RequestInput(
-        message="Enter the job URL or type CTRL+C to cancel",
+        message="Enter the job URL or type CTRL+C to cancel:",
         response_schema=str
         )
 
@@ -276,9 +278,13 @@ response_job_url_fetch_node = Workflow(
             "START",
             user_input_new_job_record,
             router_1,
-            extract_job_spec_details_agent,
-            check_job_spec_details,
         ),
+        (router_1, {
+            "JOB": extract_job_spec_details_agent,
+            "INVALID": user_input_new_job_record
+        }
+        ),
+        (extract_job_spec_details_agent, check_job_spec_details),
         (check_job_spec_details, {"retry": extract_job_spec_details_agent, "ok": verify_job_spec_details_agent}),
         (verify_job_spec_details_agent, route_job_spec_verification),
         (route_job_spec_verification, {"retry": extract_job_spec_details_agent, "ok": response_update_spreadsheet_node}),
