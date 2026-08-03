@@ -11,6 +11,10 @@ Entry point: `agent.py` → `root_agent` (a `Workflow`). Run via `run_cli_select
 ## Commands
 
 ```powershell
+
+# Activate the virtual env (needed to access uv tool to run the agent via the below command)
+.venv\Scripts\Activate.ps1 
+
 # Run the agent (interactive CLI with questionary select/multi-select UI)
 uv run python run_cli_select.py .
 

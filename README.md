@@ -35,7 +35,7 @@ The Job Advert Recorder Agent system is written in the [Python SDK for Google AD
 
 When the agent system starts up for the first time, [Playwright](https://playwright.dev/) installs the [Chromium](https://www.chromium.org/getting-involved/download-chromium/) browser for reuse (headless mode) across subsequent runs of the pipeline.
 
-Immediately after, the user is prompted for the excel workbook and sheet they want to use through the aid of the [Composio MCP Server](https://composio.dev/toolkits/excel/framework/google-adk).
+Immediately after, the user is prompted for the excel workbook and sheet they want to use through the aid of the [Composio MCP Server](https://composio.dev/).
 
 The user can also specify an optional folder within OneDrive to scope the search for excel workbooks within to reduce search latency.
 These details are then saved to a config file (`config.json`), and the user is asked for the URL of the job posting to scrape details from.
