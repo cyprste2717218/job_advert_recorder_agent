@@ -1,12 +1,16 @@
-from google.adk import Workflow
+from google.adk import Event, Workflow
+
+import browser_manager
 
 
-def end_system() -> None:
-    """Placeholder node. TODO: implement system shutdown/cleanup."""
+async def end_system():
+    """Node 0d: closes the persistent Playwright Chromium context and halts the agent system."""
+    yield Event(message="Shutting down: closing the browser session...")
+    await browser_manager.close()
+    yield Event(message="System halted.")
 
 
 response_end_node = Workflow(
-    # update this
     name="response_end_node",
     edges=[
         ("START", end_system),

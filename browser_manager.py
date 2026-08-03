@@ -3,7 +3,13 @@
 Playwright objects aren't JSON-serializable, so they're kept as module-level
 state here rather than in `ctx.state` (which the ADK Workflow persists to the
 session service). Node 0 calls `launch()` once; Node 9 reuses the context via
-`get_context()`; Node 0c calls `close()` on shutdown.
+`get_context()`; Node 0d calls `close()` on graceful shutdown.
+
+An `atexit` hook backstops that: if the process exits some other way (e.g.
+the user hits Ctrl+C mid-run instead of choosing "halt"), `_sync_close` runs
+during interpreter shutdown so the headless Chromium subprocess doesn't get
+orphaned. `atexit` handlers still run after a `KeyboardInterrupt` unwinds the
+stack, as long as the process isn't killed outright (SIGKILL / os._exit).
 
 `navigate_page`, `read_page_text`, and `click_page_element` below are plain
 async functions with type hints and docstrings, which the ADK Agent framework
@@ -15,6 +21,7 @@ they're the tools job-posting-reading agents call, as opposed to `launch()`/
 from __future__ import annotations
 
 import asyncio
+import atexit
 import sys
 
 from playwright.async_api import (
@@ -31,6 +38,19 @@ _playwright: Playwright | None = None
 _browser: Browser | None = None
 _browser_context: BrowserContext | None = None
 _page: Page | None = None
+_atexit_registered = False
+
+
+def _sync_close() -> None:
+    """atexit hook: best-effort synchronous cleanup so an interrupted run
+    (Ctrl+C, uncaught exception, etc.) doesn't leave the headless Chromium
+    subprocess orphaned. Registered once, from `launch()`."""
+    if _browser_context is None and _browser is None and _playwright is None:
+        return
+    try:
+        asyncio.run(close())
+    except Exception:
+        pass  # best-effort during interpreter shutdown; nowhere to report a failure
 
 
 async def _install_chromium() -> None:
@@ -57,10 +77,14 @@ async def launch() -> BrowserContext:
     Downloads the Chromium binary automatically on first use if it isn't
     already present (e.g. a fresh clone that hasn't run `playwright install`).
     """
-    global _playwright, _browser, _browser_context
+    global _playwright, _browser, _browser_context, _atexit_registered
 
     if _browser_context is not None:
         return _browser_context
+
+    if not _atexit_registered:
+        atexit.register(_sync_close)
+        _atexit_registered = True
 
     _playwright = await async_playwright().start()
     try:
