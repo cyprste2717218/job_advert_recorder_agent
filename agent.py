@@ -2,21 +2,14 @@ import os
 import re
 import warnings
 
-from composio import Composio
 from dotenv import load_dotenv
-from google.adk.agents.llm_agent import Agent
+from google.adk import Event, Workflow
 from google.adk.agents.context import Context
-
 from google.adk.events import RequestInput
-from google.adk import Workflow
-from google.adk import Event
-from pydantic import BaseModel
-
-from sub_agents.handle_job_request_agent import response_job_agent
-
-from sub_agents.end_system_node import response_end_node
 
 import browser_manager
+from sub_agents.end_system_node import response_end_node
+from sub_agents.handle_job_request_agent import response_job_agent
 
 load_dotenv()
 
@@ -33,9 +26,11 @@ if not COMPOSIO_API_KEY:
 if not COMPOSIO_USER_ID:
     raise ValueError("COMPOSIO_USER_ID is not set in the environment.")
 
+
 async def system_start_user_message():
-  """Tell user system is starting up"""
-  yield Event(message="System is starting up...")
+    """Tell user system is starting up"""
+    yield Event(message="System is starting up...")  # type: ignore[reportCallIssue]
+
 
 async def launch_chromium() -> None:
     """Node 0: launches a persistent headless Chromium context via Playwright.
@@ -45,43 +40,43 @@ async def launch_chromium() -> None:
     this node).
     """
     await browser_manager.launch()
-    
+
+
 def user_input_new_job_record():
     yield RequestInput(
         message="Ready to start the system? Type 'yes' or type 'halt' to halt the system:",
-        response_schema=str
-        )
+        response_schema=str,
+    )
+
 
 def router_1(node_input: str, ctx: Context):
-    
     user_message = ""
     user_input = node_input
-
 
     if re.fullmatch(r"[Yy][Ee][Ss]", user_input):
         route = "JOB"
     elif user_input == "halt":
         route = "END"
-    else: 
+    else:
         route = "INVALID"
         user_message = "Didn't get that, try again"
 
+    return Event(route=route, output=user_input, message=user_message)  # type: ignore[reportCallIssue]
 
-    return Event(route=route, output=user_input, message=user_message)
 
 job_tracker_agent = Workflow(
     name="root_agent",
     edges=[
         ("START", system_start_user_message, launch_chromium, user_input_new_job_record, router_1),
-        ( router_1,
-           {
-               "JOB": response_job_agent,
-               "END": response_end_node,
-               "INVALID": user_input_new_job_record
-           }
-       )
+        (
+            router_1,
+            {
+                "JOB": response_job_agent,
+                "END": response_end_node,
+                "INVALID": user_input_new_job_record,
+            },
+        ),
     ],
 )
 
 root_agent = job_tracker_agent
-
