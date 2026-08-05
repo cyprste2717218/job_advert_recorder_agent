@@ -22,16 +22,21 @@ from __future__ import annotations
 
 import asyncio
 import atexit
+import contextlib
 import sys
 
 from playwright.async_api import (
     Browser,
     BrowserContext,
-    Error as PlaywrightError,
     Page,
     Playwright,
-    TimeoutError as PlaywrightTimeoutError,
     async_playwright,
+)
+from playwright.async_api import (
+    Error as PlaywrightError,
+)
+from playwright.async_api import (
+    TimeoutError as PlaywrightTimeoutError,
 )
 
 _playwright: Playwright | None = None
@@ -47,10 +52,8 @@ def _sync_close() -> None:
     subprocess orphaned. Registered once, from `launch()`."""
     if _browser_context is None and _browser is None and _playwright is None:
         return
-    try:
+    with contextlib.suppress(Exception):  # best-effort during interpreter shutdown
         asyncio.run(close())
-    except Exception:
-        pass  # best-effort during interpreter shutdown; nowhere to report a failure
 
 
 async def _install_chromium() -> None:
@@ -138,10 +141,9 @@ async def navigate_page(url: str) -> dict:
     try:
         page = await _get_page()
         await page.goto(url, wait_until="load", timeout=30000)
-        try:
+        # some pages never go fully idle (polling, analytics, etc.); best effort
+        with contextlib.suppress(PlaywrightTimeoutError):
             await page.wait_for_load_state("networkidle", timeout=10000)
-        except PlaywrightTimeoutError:
-            pass  # some pages never go fully idle (polling, analytics, etc.); best effort
         return {"status": "success", "title": await page.title(), "url": page.url}
     except (PlaywrightError, PlaywrightTimeoutError) as e:
         return {"status": "error", "error": str(e)}
@@ -168,7 +170,8 @@ async def read_page_text() -> dict:
 
 
 async def click_page_element(selector: str) -> dict:
-    """Clicks an element on the currently loaded page, for exploring content hidden behind interaction.
+    """Clicks an element on the currently loaded page, for exploring content
+    hidden behind interaction.
 
     Useful for expanding truncated job descriptions ("Show more"), dismissing
     cookie/consent banners that cover content, or switching tabs within a

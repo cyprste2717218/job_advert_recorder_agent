@@ -10,3 +10,4 @@ repos:
     rev: v1.1.390
     hooks:
       - id: pyright
+        language: system
