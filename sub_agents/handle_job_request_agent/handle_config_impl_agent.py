@@ -2,21 +2,19 @@ import json
 import os
 import re
 import time
+from pathlib import Path
 
+from composio import Composio
+from dotenv import load_dotenv
 from google.adk import Workflow
 from google.adk.agents.context import Context
 from google.adk.agents.llm_agent import Agent
 from google.adk.events import Event, RequestInput
-from google.adk.tools.mcp_tool.mcp_toolset import McpToolset
 from google.adk.tools.mcp_tool.mcp_session_manager import StreamableHTTPConnectionParams
-
-from composio import Composio
-from dotenv import load_dotenv
+from google.adk.tools.mcp_tool.mcp_toolset import McpToolset
 from google.genai import types
-from pathlib import Path
 
 from models.schemas import NamedItem, WorkbookItem
-from .job_url_fetch_agent import response_job_url_fetch_node
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 CONFIG_PATH = PROJECT_ROOT / "config.json"
@@ -24,6 +22,7 @@ CONFIG_PATH = PROJECT_ROOT / "config.json"
 REQUIRED_FIELDS = {"spreadsheet_id", "worksheet_name", "working_dir"}
 
 load_dotenv()
+
 
 def config_check_present_check():
     """Return an Event output on whether config.json exists with the required fields.
@@ -41,24 +40,25 @@ def config_check_present_check():
 
     return Event(output=REQUIRED_FIELDS.issubset(data.keys()))
 
-def checking_config_check_result(node_input: bool):
-    """Update the user on the result of the config check and forward the response to the parent Workflow (response_job_agent)"""
 
-    if node_input == False:
-        route = "False"
-    else:
-        route = "True"
+def checking_config_check_result(node_input: bool):
+    """Update the user on the result of the config check and forward the
+    response to the parent Workflow (response_job_agent)"""
+
+    route = "False" if not node_input else "True"
 
     if route == "True":
         message = "All good, config is present."
     else:
         message = "Config is missing required fields."
 
-    yield Event(message=message)
+    yield Event(message=message)  # type: ignore[reportCallIssue]
     yield Event(output=route)
 
+
 def config_check_router(node_input: str):
-    return Event(route=node_input)
+    return Event(route=node_input)  # type: ignore[reportCallIssue]
+
 
 def guard_structured_output(state_key: str):
     """after_model_callback that catches a final response that isn't valid
@@ -86,7 +86,7 @@ def guard_structured_output(state_key: str):
             return None
         try:
             json.loads(text)
-        except (json.JSONDecodeError, ValueError):
+        except json.JSONDecodeError, ValueError:
             callback_context.state[f"{state_key}_error"] = text
             new_content = types.Content(
                 role=llm_response.content.role,
@@ -121,7 +121,9 @@ def _parse_reauth_prompt(text: str) -> tuple[str, str] | None:
     return toolkit_name, url_match.group(0)
 
 
-def _wait_for_toolkit_active(toolkit_name: str, timeout: float = 300, interval: float = 3.0) -> bool:
+def _wait_for_toolkit_active(
+    toolkit_name: str, timeout: float = 300, interval: float = 3.0
+) -> bool:
     """Poll connected_accounts until `toolkit_name` (or, if unrecognized, any
     required toolkit) shows ACTIVE, or the timeout elapses."""
     toolkit_slug = TOOLKIT_NAME_TO_SLUG.get(toolkit_name.strip().lower())
@@ -129,7 +131,7 @@ def _wait_for_toolkit_active(toolkit_name: str, timeout: float = 300, interval: 
     deadline = time.time() + timeout
     while time.time() < deadline:
         existing = composio_client.connected_accounts.list(
-            user_ids=[COMPOSIO_USER_ID],
+            user_ids=[COMPOSIO_USER_ID],  # type: ignore[reportArgumentType]
             toolkit_slugs=toolkit_slugs,
             statuses=["ACTIVE"],
         )
@@ -155,26 +157,24 @@ def raise_if_tool_error(state_key: str, hint: str = ""):
             if reauth:
                 toolkit_name, url = reauth
                 yield Event(
-                    message=(
+                    message=(  # type: ignore[reportCallIssue]
                         f"Your {toolkit_name} connection needs to be re-authorized. "
                         f"Please click the link, then I'll continue automatically: {url}"
                     )
                 )
                 reconnected = _wait_for_toolkit_active(toolkit_name)
-                ctx.state.pop(f"{state_key}_error", None)
+                ctx.state[f"{state_key}_error"] = None
                 if reconnected:
-                    yield Event(message="Reconnected, retrying...")
-                    yield Event(route="retry", output=node_input)
+                    yield Event(message="Reconnected, retrying...")  # type: ignore[reportCallIssue]
+                    yield Event(route="retry", output=node_input)  # type: ignore[reportCallIssue]
                     return
-                raise RuntimeError(
-                    f"Timed out waiting for {toolkit_name} reauthorization."
-                )
+                raise RuntimeError(f"Timed out waiting for {toolkit_name} reauthorization.")
 
             message = f"Expected structured data for '{state_key}' but got:\n{error_text}"
             if hint:
                 message += f"\n\n{hint}"
             raise RuntimeError(message)
-        yield Event(route="ok", output=node_input)
+        yield Event(route="ok", output=node_input)  # type: ignore[reportCallIssue]
 
     _check.__name__ = f"raise_if_tool_error_{state_key}"
     return _check
@@ -204,18 +204,25 @@ def require_tool_before_reply(tool_name: str):
 
     return _callback
 
+
 MODEL = "gemini-3.1-flash-lite"
 
 COMPOSIO_API_KEY = os.getenv("COMPOSIO_API_KEY")
 COMPOSIO_USER_ID = os.getenv("COMPOSIO_USER_ID")
 
-composio_client = Composio(api_key=COMPOSIO_API_KEY)
+composio_client = Composio(api_key=COMPOSIO_API_KEY)  # type: ignore[reportArgumentType]
 
 _session = composio_client.sessions.create(
-    user_id=COMPOSIO_USER_ID,
+    user_id=COMPOSIO_USER_ID,  # type: ignore[reportArgumentType]
     toolkits=["excel", "one_drive"],
     tools={
-        "excel": {"enable": ["EXCEL_LIST_FILES", "EXCEL_LIST_WORKSHEETS", "EXCEL_GET_WORKSHEET_USED_RANGE"]},
+        "excel": {
+            "enable": [
+                "EXCEL_LIST_FILES",
+                "EXCEL_LIST_WORKSHEETS",
+                "EXCEL_GET_WORKSHEET_USED_RANGE",
+            ]
+        },
         "one_drive": {"enable": ["ONE_DRIVE_LIST_DRIVES"]},
     },
     preload={
@@ -244,7 +251,7 @@ def ensure_composio_connections(ctx: Context):
     """Verify OneDrive/Excel are connected for this Composio user; if not, surface
     the OAuth link and wait for the user to complete it before continuing."""
     existing = composio_client.connected_accounts.list(
-        user_ids=[COMPOSIO_USER_ID],
+        user_ids=[COMPOSIO_USER_ID],  # type: ignore[reportArgumentType]
         toolkit_slugs=REQUIRED_TOOLKITS,
         statuses=["ACTIVE"],
     )
@@ -260,11 +267,11 @@ def ensure_composio_connections(ctx: Context):
         # same way `authorize()` does internally.
         auth_config_id = composio_client.toolkits._get_auth_config_id(toolkit=toolkit)
         connection_request = composio_client.connected_accounts.link(
-            user_id=COMPOSIO_USER_ID,
+            user_id=COMPOSIO_USER_ID,  # type: ignore[reportArgumentType]
             auth_config_id=auth_config_id,
         )
         yield Event(
-            message=(
+            message=(  # type: ignore[reportCallIssue]
                 f"Please connect your {toolkit} account to continue: "
                 f"{connection_request.redirect_url}"
             )
@@ -276,8 +283,8 @@ def ensure_composio_connections(ctx: Context):
 
 def write_config_file(ctx: Context):
     """Write the selected folder/workbook/sheet/headers to config.json."""
-    from pathlib import Path
     import json
+    from pathlib import Path
 
     project_root = Path(__file__).resolve().parent.parent.parent
     config_path = project_root / "config.json"
@@ -300,7 +307,7 @@ def write_config_file(ctx: Context):
     # it under the same key here too.
     ctx.state["working_dir"] = working_dir
 
-    yield Event(message="Saved workbook/sheet configuration to config.json.")
+    yield Event(message="Saved workbook/sheet configuration to config.json.")  # type: ignore[reportCallIssue]
     yield Event(output=config)
 
 
@@ -310,18 +317,16 @@ def user_input_sheet(node_input):
         message="Which sheet?",
         response_schema=str,
         payload={"choices": choices},
-        )
+    )
 
 
 def user_input_workbook(node_input):
-    choices = [
-        f"{w.get('name', 'unknown')} ({w.get('path', 'unknown')})" for w in node_input
-    ]
+    choices = [f"{w.get('name', 'unknown')} ({w.get('path', 'unknown')})" for w in node_input]
     yield RequestInput(
         message="Choose a workbook",
         response_schema=str,
         payload={"choices": choices},
-        )
+    )
 
 
 def user_input_drive(node_input):
@@ -330,7 +335,7 @@ def user_input_drive(node_input):
         message="What OneDrive drive do you want to use?",
         response_schema=str,
         payload={"choices": choices},
-        )
+    )
 
 
 def resolve_drive_selection(node_input: str, ctx: Context):
@@ -447,7 +452,8 @@ retrieve_sheet_headers = Agent(
     after_model_callback=guard_structured_output("sheet_headers"),
     instruction="""
     You have access to Composio tools via MCP.
-    CRITICAL: For the user's request, you MUST exclusively call the 'EXCEL_GET_WORKSHEET_USED_RANGE' tool.
+    CRITICAL: For the user's request, you MUST exclusively call the
+    'EXCEL_GET_WORKSHEET_USED_RANGE' tool.
     Do not attempt to answer using general knowledge or seek other tools.
     Always prioritize tool execution as your very first step.
 
