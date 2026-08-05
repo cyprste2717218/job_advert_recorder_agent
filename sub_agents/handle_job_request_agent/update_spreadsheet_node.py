@@ -1,15 +1,14 @@
 import json
 import os
 
+from composio import Composio
+from dotenv import load_dotenv
 from google.adk import Workflow
 from google.adk.agents.context import Context
 from google.adk.agents.llm_agent import Agent
 from google.adk.events import Event
-from google.adk.tools.mcp_tool.mcp_toolset import McpToolset
 from google.adk.tools.mcp_tool.mcp_session_manager import StreamableHTTPConnectionParams
-
-from composio import Composio
-from dotenv import load_dotenv
+from google.adk.tools.mcp_tool.mcp_toolset import McpToolset
 from google.genai import types
 from pydantic import BaseModel
 
@@ -23,14 +22,14 @@ MAX_WRITE_ATTEMPTS = 3
 COMPOSIO_API_KEY = os.getenv("COMPOSIO_API_KEY")
 COMPOSIO_USER_ID = os.getenv("COMPOSIO_USER_ID")
 
-composio_client = Composio(api_key=COMPOSIO_API_KEY)
+composio_client = Composio(api_key=COMPOSIO_API_KEY)  # type: ignore[reportArgumentType]
 
 # Own Composio session/toolset (rather than importing the one from
 # handle_config_impl_agent.py) to avoid a circular import: that module
 # already imports response_job_url_fetch_node from job_url_fetch_agent.py,
 # which in turn needs this module's node 14/15 to build its Workflow.
 _session = composio_client.sessions.create(
-    user_id=COMPOSIO_USER_ID,
+    user_id=COMPOSIO_USER_ID,  # type: ignore[reportArgumentType]
     toolkits=["excel"],
     tools={
         "excel": {"enable": ["EXCEL_GET_WORKSHEET_USED_RANGE", "EXCEL_UPDATE_RANGE"]},
@@ -70,7 +69,7 @@ def guard_structured_output(state_key: str):
             return None
         try:
             json.loads(text)
-        except (json.JSONDecodeError, ValueError):
+        except json.JSONDecodeError, ValueError:
             callback_context.state[f"{state_key}_error"] = text
             new_content = types.Content(
                 role=llm_response.content.role,
@@ -87,7 +86,10 @@ def guard_structured_output(state_key: str):
 write_job_record_agent = Agent(
     model=MODEL,
     name="write_job_record_agent",
-    description="Writes the extracted job posting record as a new row in the configured Excel worksheet via the Composio MCP server.",
+    description=(
+        "Writes the extracted job posting record as a new row in the configured Excel "
+        "worksheet via the Composio MCP server."
+    ),
     output_schema=SpreadsheetWriteResult,
     output_key="spreadsheet_write_result",
     after_model_callback=guard_structured_output("spreadsheet_write_result"),
@@ -138,15 +140,15 @@ def raise_if_write_error(state_key: str, attempts_key: str):
             attempts = ctx.state.get(attempts_key, 0) + 1
             ctx.state[attempts_key] = attempts
             if attempts < MAX_WRITE_ATTEMPTS:
-                yield Event(message=f"Malformed response for '{state_key}', retrying...")
-                yield Event(route="retry", output=node_input)
+                yield Event(message=f"Malformed response for '{state_key}', retrying...")  # type: ignore[reportCallIssue]
+                yield Event(route="retry", output=node_input)  # type: ignore[reportCallIssue]
                 return
             raise RuntimeError(
                 f"Expected structured data for '{state_key}' after {attempts} "
                 f"attempts but got:\n{error_text}"
             )
         ctx.state[attempts_key] = 0
-        yield Event(route="ok", output=node_input)
+        yield Event(route="ok", output=node_input)  # type: ignore[reportCallIssue]
 
     _check.__name__ = f"raise_if_write_error_{state_key}"
     return _check
@@ -165,9 +167,9 @@ def tell_user_spreadsheet_updated(node_input, ctx: Context):
 
     if result.get("success"):
         row_address = result.get("row_address") or "the next available row"
-        yield Event(message=f"Spreadsheet updated: new row written at {row_address}.")
+        yield Event(message=f"Spreadsheet updated: new row written at {row_address}.")  # type: ignore[reportCallIssue]
     else:
-        yield Event(message="Spreadsheet update reported failure; please check the worksheet.")
+        yield Event(message="Spreadsheet update reported failure; please check the worksheet.")  # type: ignore[reportCallIssue]
 
     yield Event(output=node_input)
 
@@ -176,6 +178,9 @@ response_update_spreadsheet_node = Workflow(
     name="response_update_spreadsheet_node",
     edges=[
         ("START", write_job_record_agent, check_spreadsheet_write),
-        (check_spreadsheet_write, {"retry": write_job_record_agent, "ok": tell_user_spreadsheet_updated}),
+        (
+            check_spreadsheet_write,
+            {"retry": write_job_record_agent, "ok": tell_user_spreadsheet_updated},
+        ),
     ],
 )
