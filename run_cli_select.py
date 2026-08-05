@@ -31,7 +31,6 @@ plain text prompt (or a yes/no confirm for RequestConfirmation).
 
 from __future__ import annotations
 
-import asyncio
 import json
 import sys
 import threading
@@ -44,121 +43,119 @@ from google.genai import types
 
 
 def _ask(question: questionary.Question) -> Any:
-  """Run a questionary prompt's .ask() in a fresh thread with its own event
-  loop.
+    """Run a questionary prompt's .ask() in a fresh thread with its own event
+    loop.
 
-  ``_prompt_for_function_call`` is called synchronously (not awaited) from
-  inside ADK's already-running asyncio event loop. questionary/prompt_toolkit's
-  .ask() calls asyncio.run() internally, which raises "asyncio.run() cannot
-  be called from a running event loop" in that situation. Running it on a
-  separate thread gives it a loop-free thread to create its own loop in.
+    ``_prompt_for_function_call`` is called synchronously (not awaited) from
+    inside ADK's already-running asyncio event loop. questionary/prompt_toolkit's
+    .ask() calls asyncio.run() internally, which raises "asyncio.run() cannot
+    be called from a running event loop" in that situation. Running it on a
+    separate thread gives it a loop-free thread to create its own loop in.
 
-  questionary swallows Ctrl+C/Esc internally and reports it by returning
-  None from .ask() rather than raising -- so it never reaches this thread's
-  caller as a KeyboardInterrupt. Treated here as "quit the CLI": routing a
-  cancellation back through the Workflow graph as an ordinary route can't
-  stop ADK's outer `run_interactively` loop (it only exits on a literal
-  "exit" typed at its own top-level prompt), so instead this exits the
-  process directly. That in turn unwinds through the exit and triggers
-  browser_manager's atexit hook, so the Playwright/Chromium context still
-  gets closed on the way out.
-  """
-  result: dict[str, Any] = {}
+    questionary swallows Ctrl+C/Esc internally and reports it by returning
+    None from .ask() rather than raising -- so it never reaches this thread's
+    caller as a KeyboardInterrupt. Treated here as "quit the CLI": routing a
+    cancellation back through the Workflow graph as an ordinary route can't
+    stop ADK's outer `run_interactively` loop (it only exits on a literal
+    "exit" typed at its own top-level prompt), so instead this exits the
+    process directly. That in turn unwinds through the exit and triggers
+    browser_manager's atexit hook, so the Playwright/Chromium context still
+    gets closed on the way out.
+    """
+    result: dict[str, Any] = {}
 
-  def _worker() -> None:
-    result["value"] = question.ask()
+    def _worker() -> None:
+        result["value"] = question.ask()
 
-  worker = threading.Thread(target=_worker)
-  worker.start()
-  worker.join()
+    worker = threading.Thread(target=_worker)
+    worker.start()
+    worker.join()
 
-  if result.get("value") is None:
-    click.echo("\nCancelled (Ctrl+C) -- shutting down...")
-    sys.exit(0)
+    if result.get("value") is None:
+        click.echo("\nCancelled (Ctrl+C) -- shutting down...")
+        sys.exit(0)
 
-  return result["value"]
+    return result["value"]
 
 
 def _extract_choices(schema: Any, payload: Any) -> tuple[list[Any] | None, bool]:
-  """Returns (choices, is_multi) or (None, False) if no choices are given."""
-  is_multi = isinstance(schema, dict) and schema.get("type") == "array"
+    """Returns (choices, is_multi) or (None, False) if no choices are given."""
+    is_multi = isinstance(schema, dict) and schema.get("type") == "array"
 
-  if isinstance(schema, dict):
-    if "enum" in schema:
-      return schema["enum"], is_multi
-    items = schema.get("items")
-    if isinstance(items, dict) and "enum" in items:
-      return items["enum"], True
+    if isinstance(schema, dict):
+        if "enum" in schema:
+            return schema["enum"], is_multi
+        items = schema.get("items")
+        if isinstance(items, dict) and "enum" in items:
+            return items["enum"], True
 
-  if isinstance(payload, dict):
-    choices = payload.get("choices") or payload.get("options")
-    if choices:
-      return list(choices), is_multi
+    if isinstance(payload, dict):
+        choices = payload.get("choices") or payload.get("options")
+        if choices:
+            return list(choices), is_multi
 
-  return None, is_multi
+    return None, is_multi
 
 
 def _prompt_for_function_call_select(
     fc_id: str, fc_name: str, args: dict[str, Any]
 ) -> types.Content:
-  """questionary-based replacement for adk_cli._prompt_for_function_call."""
-  if fc_name == adk_cli._REQUEST_CONFIRMATION:
-    tool_confirmation = args.get("toolConfirmation", {})
-    hint = tool_confirmation.get("hint", "")
-    original_fc = args.get("originalFunctionCall", {})
-    original_name = original_fc.get("name", "unknown")
-    confirmed = _ask(
-        questionary.confirm(hint or f"Confirm {original_name}?", default=False)
-    )
-    response: dict[str, Any] = {"confirmed": bool(confirmed)}
+    """questionary-based replacement for adk_cli._prompt_for_function_call."""
+    if fc_name == adk_cli._REQUEST_CONFIRMATION:
+        tool_confirmation = args.get("toolConfirmation", {})
+        hint = tool_confirmation.get("hint", "")
+        original_fc = args.get("originalFunctionCall", {})
+        original_name = original_fc.get("name", "unknown")
+        confirmed = _ask(questionary.confirm(hint or f"Confirm {original_name}?", default=False))
+        response: dict[str, Any] = {"confirmed": bool(confirmed)}
 
-  elif fc_name == adk_cli._REQUEST_INPUT:
-    message = args.get("message") or "Input requested"
-    schema = args.get("response_schema")
-    payload = args.get("payload")
-    choices, is_multi = _extract_choices(schema, payload)
+    elif fc_name == adk_cli._REQUEST_INPUT:
+        message = args.get("message") or "Input requested"
+        schema = args.get("response_schema")
+        payload = args.get("payload")
+        choices, is_multi = _extract_choices(schema, payload)
 
-    if choices and is_multi:
-      result = _ask(questionary.checkbox(message, choices=choices))
-    elif choices:
-      result = _ask(questionary.select(message, choices=choices))
+        if choices and is_multi:
+            result = _ask(questionary.checkbox(message, choices=choices))
+        elif choices:
+            result = _ask(questionary.select(message, choices=choices))
+        else:
+            raw = _ask(questionary.text(message))
+            try:
+                result = json.loads(raw)
+            except json.JSONDecodeError, ValueError, TypeError:
+                result = raw
+
+        response = result if isinstance(result, dict) else {"result": result}
+
     else:
-      raw = _ask(questionary.text(message))
-      try:
-        result = json.loads(raw)
-      except (json.JSONDecodeError, ValueError, TypeError):
-        result = raw
+        click.echo(f"[HITL] Waiting for input for {fc_name}({args})")
+        raw = _ask(questionary.text("[user]: "))
+        response = {"result": raw}
 
-    response = result if isinstance(result, dict) else {"result": result}
-
-  else:
-    click.echo(f"[HITL] Waiting for input for {fc_name}({args})")
-    raw = _ask(questionary.text("[user]: "))
-    response = {"result": raw}
-
-  return types.Content(
-      role="user",
-      parts=[
-          types.Part(
-              function_response=types.FunctionResponse(
-                  id=fc_id,
-                  name=fc_name,
-                  response=response,
-              )
-          )
-      ],
-  )
+    return types.Content(
+        role="user",
+        parts=[
+            types.Part(
+                function_response=types.FunctionResponse(
+                    id=fc_id,
+                    name=fc_name,
+                    response=response,
+                )
+            )
+        ],
+    )
 
 
 def main() -> None:
-  adk_cli._prompt_for_function_call = _prompt_for_function_call_select
-  from google.adk.cli.cli_tools_click import cli_run
+    adk_cli._prompt_for_function_call = _prompt_for_function_call_select
+    from google.adk.cli.cli_tools_click import cli_run
 
-  # Re-dispatch straight into ADK's own `run` command with our patch
-  # already applied, so all of its flags (--replay, --resume, --jsonl,
-  # --save_session, ...) keep working unmodified.
-  cli_run.main(args=sys.argv[1:], prog_name="run_cli_select.py")
+    # Re-dispatch straight into ADK's own `run` command with our patch
+    # already applied, so all of its flags (--replay, --resume, --jsonl,
+    # --save_session, ...) keep working unmodified.
+    cli_run.main(args=sys.argv[1:], prog_name="run_cli_select.py")
 
 
 if __name__ == "__main__":
-  main()
+    main()
