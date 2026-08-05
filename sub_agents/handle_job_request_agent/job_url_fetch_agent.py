@@ -15,12 +15,12 @@ MAX_JOB_URL_FETCH_ATTEMPTS = 3
 MAX_EXTRACTION_ATTEMPTS = 3
 
 def router_1(node_input: str, ctx: Context):
-    user_message = ""
     user_input = node_input
 
     if user_input.startswith('https://'):
         result = "JOB"
         ctx.state["job_url"] = user_input
+        user_message = f"Extract job details from: {user_input}"
     else:
         result = "INVALID"
         user_message = "Not a valid URL, try again"
@@ -99,6 +99,7 @@ def raise_if_extraction_error(state_key: str, attempts_key: str):
                 f"attempts but got:\n{error_text}"
             )
         ctx.state[attempts_key] = 0
+        yield Event(message="Extraction accepted, proceeding to verification.")
         yield Event(route="ok", output=node_input)
 
     _check.__name__ = f"raise_if_extraction_error_{state_key}"
@@ -248,6 +249,7 @@ def route_job_spec_verification(node_input, ctx: Context):
     verification = ctx.state.get("job_spec_verification") or {}
     if verification.get("is_valid"):
         ctx.state["job_spec_verification_feedback"] = ""
+        yield Event(message="Verification passed, writing to spreadsheet.")
         yield Event(route="ok", output=node_input)
         return
 
