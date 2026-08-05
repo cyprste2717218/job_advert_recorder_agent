@@ -13,6 +13,8 @@ from dotenv import load_dotenv
 from google.genai import types
 from pydantic import BaseModel
 
+from models.schemas import SpreadsheetWriteResult
+
 load_dotenv()
 
 MODEL = "gemini-3.1-flash-lite"
@@ -78,11 +80,6 @@ def guard_structured_output(state_key: str):
         return None
 
     return _callback
-
-
-class SpreadsheetWriteResult(BaseModel):
-    success: bool
-    row_address: str = ""
 
 
 # Node 14 (agent): access the selected sheet and write the in-memory record

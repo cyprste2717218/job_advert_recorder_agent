@@ -5,9 +5,9 @@ from google.adk.events import Event, RequestInput
 from google.adk.agents.context import Context
 from google.adk.agents.llm_agent import Agent
 from google.genai import types
-from pydantic import BaseModel
 
 import browser_manager
+from models.schemas import JobSpecVerification
 from .update_spreadsheet_node import response_update_spreadsheet_node
 
 
@@ -191,11 +191,6 @@ extract_job_spec_details_agent = Agent(
 check_job_spec_details = raise_if_extraction_error(
     "job_spec_details", "job_spec_extraction_attempts"
 )
-
-
-class JobSpecVerification(BaseModel):
-    is_valid: bool
-    issues: list[str] = []
 
 
 verify_job_spec_details_agent = Agent(

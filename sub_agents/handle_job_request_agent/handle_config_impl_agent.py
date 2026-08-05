@@ -13,9 +13,9 @@ from google.adk.tools.mcp_tool.mcp_session_manager import StreamableHTTPConnecti
 from composio import Composio
 from dotenv import load_dotenv
 from google.genai import types
-from pydantic import BaseModel
 from pathlib import Path
 
+from models.schemas import NamedItem, WorkbookItem
 from .job_url_fetch_agent import response_job_url_fetch_node
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
@@ -235,17 +235,6 @@ composio_toolset = McpToolset(
         headers={k: v for k, v in (_session.mcp.headers or {}).items() if v is not None},
     ),
 )
-
-
-class NamedItem(BaseModel):
-    id: str
-    name: str
-
-
-class WorkbookItem(BaseModel):
-    id: str
-    name: str
-    path: str
 
 
 REQUIRED_TOOLKITS = ["one_drive", "excel"]
