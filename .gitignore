@@ -11,3 +11,4 @@ venv/
 .claude
 
 config.json
+.ruff_cache
