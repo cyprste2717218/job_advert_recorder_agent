@@ -1,11 +1,16 @@
 ---
 name: Feature request
-about: Suggest an idea/improvement for this project
-title: feat([SCOPE]/[NAME]
+about: Suggest an idea for this project
+title: feat/[NAME]
 labels: ''
 assignees: ''
 
 ---
+
+*Note: Ensure to rewrite the default issue title to capture a very brief summary (several words at most) of what the proposed feature is.
+
+E.g. feat/calendar-dashboard-integration
+*
 
 **User Story:**
 Explain in a user story what you want to implement, who it effects and why its a valuable change to make. 
@@ -24,7 +29,7 @@ _
 A clear and concise description of any alternative solutions or features you've considered.
 
 **What does successful implementation look like?:**
-I.e. How do we verify the change was implemented successfully? Are there additional tests which should pass, or a measurable process speed up in system boot up time etc.
+I.e. How do we verify the change was implemented successfully? Are there additional tests which should pass etc.
 
 
 **Additional context:**
