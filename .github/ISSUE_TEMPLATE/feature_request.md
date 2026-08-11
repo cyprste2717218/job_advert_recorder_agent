@@ -7,14 +7,14 @@ assignees: ''
 
 ---
 
-*Note: Ensure to rewrite the default issue title to capture a very brief summary (several words at most) of what the proposed feature is.
+_Note: Ensure to rewrite the default issue title to capture a very brief summary (several words at most) of what the proposed feature is._
 
-E.g. feat/calendar-dashboard-integration
-*
+_E.g. feat/calendar-dashboard-integration_
+
 
 **User Story:**
 Explain in a user story what you want to implement, who it effects and why its a valuable change to make. 
-_ E.g. As a [USER] I want to be able to..._
+_E.g. As a [USER] I want to be able to..._
 
 **Rough Implementation Plan:**
 What are the rough steps you plan to take to implement this feature?
