@@ -1,11 +1,15 @@
 ---
 name: Bug report
 about: Create a report to help us improve
-title: ''
+title: fix/[NAME]
 labels: ''
 assignees: ''
 
 ---
+
+_Note: Ensure to rewrite the default issue title to capture a very brief summary (several words at most) of what the proposed fix is._
+
+_E.g. fix/invalid-edge-case-handling_
 
 **Describe the bug**
 A clear and concise description of what the bug is.

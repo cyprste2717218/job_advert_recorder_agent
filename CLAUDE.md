@@ -63,9 +63,59 @@ Cross-cutting patterns worth knowing before touching any of the above:
 
 ## Git Conventions
 
+
+### Branching
+
+Each branch in this project should be focused on implementing changes that fall under a single specific change aim.
+
+There are four types of aims, the aim of the branch is reflected in the prefix used in the branch name.
+Every branch is linked to the github issue of the same name in the project board.
+
+When naming a branch, ensure it matches the name of an existing github issue.
+If you're making changes on an existing branch, make sure that the change is within the scope of the linked github issue.
+
+The focus for a branch falls under one of the following:
+
+- Feature:
+
+For work that implements new functionality within the system. 
+E.g. A new section of the CLI interface for re-configuring system settings
+
+A feature branch should always follow the pattern `feat/[NAME]`, where `[NAME]` is a several word summary of the feature.
+
+- **Chore:**
+
+Improves system performance and/or implements dependency updates (i.e. breaking changes/security fixes) that don't impact testing suite deps.
+E.g. Update to the next major version of `pydantic` and update all the sdk object imports and instances throughout the codebase.
+
+A chore branch should always follow the pattern `chore/[NAME]`, where `[NAME]` is a several word summary of the chore.
+
+- **Fix:**
+
+Implementing a fix to an identified bug, e.g. fixing a google adk system runtime error that occurs on handling of unexpected user input.
+
+A fix branch should always follow the pattern `fix/[NAME]`, where `[NAME]` is a several word summary of the fix.
+
+
+- **Test:**
+
+Adding and/or editing unit/integration/e2e tests, e.g. an eval suite of unit tests for an agent node which extracts and returns specific data from an info source.
+
+A test branch should always follow the pattern `test/[NAME]`, where `[NAME]` is a several word summary of the feature.
+
+
+- **Docs:**
+
+Any changes or new additions to the project documentation. i.e. changes to `ARCHITECTURE.md`, `README.md` or `CLAUDE.md`
+E.g. business logic change in source code for the google ADK system which need reflecting in the `mermaid.js` diagram in `ARCHITECTURE/md`.
+
+A docs branch should always follow the pattern `docs/[NAME]`, where `[NAME]` is a several word summary of the docs changes.
+
+### Commits
+
 Before a git commit is created, staged and pushed to the remote branch, it is essential that the changeset meets the following requirements with occasional exceptions (detailed below):
 
-### - Keep the change small and focused:
+#### - Keep the change small and focused:
 
 The change should be small and focused, scoped to one specific type of change (refer to [Types of Git Commit](#types-of-git-commit) below to classify the change).
 The commit message should clearly identify what the changes were in a good level of technical detail, covering what changed and where.
@@ -75,13 +125,9 @@ The commit message itself should generally be at most 50 characters in total, ho
 Commit messages should always start with one prefix from the [Types of Git Commit](#types-of-git-commit) section.
 However, in the case the change doesn't neatly fall into any of these categories opt to classify it as a `chore` type.
 
-#### Types of Git Commit
+##### - Types of Git Commit
 
 The following types of git commits exist:
-
-- `chore:`
-
-For most changes which help implement code as part of an overarching feature, where it be source code or automated tests. The feature it is contributing to is ideally indicated by the name of the current branch (which should start with the `feat/` prefix).
 
 - `fix:`
 
@@ -89,19 +135,24 @@ For any changes which implement a bug fix, which could have been identified duri
 
 - `docs:`
 
-For any project documentation changes, i.e. any `CLAUDE.md` or `README.md` files contained within the source code of this project.
+For any project documentation changes, i.e. any `.md` files such as `CLAUDE.md` or `README.md`, contained within the source code of this project.
 
 - `test:`
 
 Any changes to or newly created test files or related config, i.e. relating to `vitest`, `playwright` or `supertest` testing frameworks
 
 
-### - Do not make too many changes
+- `chore:`
+
+For most changes which help implement code as part of an overarching feature which don't fall into any of the other pointed categories.
+
+
+#### - Do not make too many changes
 
 Does not modify more than 5 files and make more than 200 lines of code changes at once.
 If the changeset exceeds this, separate out the changes into numerous commits to be sequentially pushed to the remote branch per the [guidance in the previous requirement](#--keep-the-change-small-and-focused)
 
-### - Pass the required git hooks
+#### - Pass the required git hooks
 
 Ensures the `pre-commit.config.yaml` script is ran succesfully before a git commit is pushed.
 However, on `feat/` branches in the case that the needed changes to make this hook scripts pass would exceed the change size requirement, add `WIP:` after the [git commit type prefix]().

@@ -3,7 +3,7 @@ name: Docs
 about: Suggest an update/improvement of the project docs
 title: docs/[NAME]
 labels: ''
-assignees: cyprste2717218
+assignees: ''
 
 ---
 
