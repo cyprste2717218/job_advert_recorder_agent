@@ -23,17 +23,17 @@ class NamedItem(BaseModel):
     name: str = Field(description="The name of a retrieved digital item")
 
 
-class WorkbookItem(BaseModel):
-    id: str = Field(description="The ID of the retrieved workbook")
-    name: str = Field(description="The filename of the retrieved workbook")
-    path: str = Field(
-        description="The fully qualified file path to the workbook within the user's drive"
-    )
-
-
 class FolderItem(BaseModel):
-    id: str = Field(description="The ID of the retrieved folder")
-    name: str = Field(description="The name of the retrieved folder")
+    id: str = Field(description="The ID of the retrieved item")
+    name: str = Field(description="The name of the retrieved item")
     is_folder: bool = Field(
-        default=True, description="Whether this item is a folder (always true for this model)"
+        description="True if this item is a folder, False if it's a workbook file"
+    )
+    path: str = Field(
+        default="",
+        description=(
+            "The fully qualified path of the item within the drive; only "
+            "populated for workbook files, since folder paths are tracked "
+            "separately via current_folder_path"
+        ),
     )
