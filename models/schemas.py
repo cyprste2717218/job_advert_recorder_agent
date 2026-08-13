@@ -29,3 +29,11 @@ class WorkbookItem(BaseModel):
     path: str = Field(
         description="The fully qualified file path to the workbook within the user's drive"
     )
+
+
+class FolderItem(BaseModel):
+    id: str = Field(description="The ID of the retrieved folder")
+    name: str = Field(description="The name of the retrieved folder")
+    is_folder: bool = Field(
+        default=True, description="Whether this item is a folder (always true for this model)"
+    )

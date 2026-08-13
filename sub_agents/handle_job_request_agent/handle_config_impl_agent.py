@@ -14,7 +14,7 @@ from google.adk.tools.mcp_tool.mcp_session_manager import StreamableHTTPConnecti
 from google.adk.tools.mcp_tool.mcp_toolset import McpToolset
 from google.genai import types
 
-from models.schemas import NamedItem, WorkbookItem
+from models.schemas import FolderItem, NamedItem, WorkbookItem
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 CONFIG_PATH = PROJECT_ROOT / "config.json"
@@ -223,7 +223,7 @@ _session = composio_client.sessions.create(
                 "EXCEL_GET_WORKSHEET_USED_RANGE",
             ]
         },
-        "one_drive": {"enable": ["ONE_DRIVE_LIST_DRIVES"]},
+        "one_drive": {"enable": ["ONE_DRIVE_LIST_DRIVES", "ONE_DRIVE_LIST_FOLDER_CHILDREN"]},
     },
     preload={
         "tools": [
@@ -231,6 +231,7 @@ _session = composio_client.sessions.create(
             "EXCEL_LIST_WORKSHEETS",
             "EXCEL_GET_WORKSHEET_USED_RANGE",
             "ONE_DRIVE_LIST_DRIVES",
+            "ONE_DRIVE_LIST_FOLDER_CHILDREN",
         ]
     },
     mcp=True,
@@ -297,6 +298,7 @@ def write_config_file(ctx: Context):
         "worksheet_name": ctx.state.get("selected_sheet_name"),
         "working_dir": working_dir,
         "drive_id": ctx.state.get("selected_drive_id"),
+        "folder_path": ctx.state.get("selected_folder_path", ""),
         "sheet_headers": ctx.state.get("sheet_headers", []),
     }
     config_path.write_text(json.dumps(config, indent=2))
@@ -339,12 +341,70 @@ def user_input_drive(node_input):
 
 
 def resolve_drive_selection(node_input: str, ctx: Context):
-    """Resolve the user-picked drive name to an id and stash it in state."""
+    """Resolve the user-picked drive name to an id and stash it in state.
+
+    Also resets folder navigation back to the drive root, since a freshly
+    selected drive has no relationship to whatever folder was being browsed
+    for a previously selected drive (relevant on a retry loop back to
+    node 1)."""
     drives = ctx.state.get("onedrive_drives", [])
     drive = next((d for d in drives if d.get("name") == node_input), None)
     ctx.state["selected_drive_id"] = drive["id"] if drive else None
+    ctx.state["current_folder_path"] = "/"
 
     yield Event(output=node_input)
+
+
+FOLDER_NAV_SELECT_CHOICE = "Select this folder"
+FOLDER_NAV_UP_CHOICE = ".. (up one level)"
+
+
+def user_input_folder_navigation(node_input, ctx: Context):
+    """Present the current folder's subfolders plus "up a level" and "select
+    this folder" options, so the user can walk the drive's folder tree
+    rather than being limited to a flat, drive-wide search."""
+    current_path = ctx.state.get("current_folder_path", "/")
+    folder_names = [f.get("name", "unknown") for f in node_input if f.get("is_folder", True)]
+
+    choices = [f"{FOLDER_NAV_SELECT_CHOICE} ({current_path})"]
+    if current_path != "/":
+        choices.append(FOLDER_NAV_UP_CHOICE)
+    choices.extend(folder_names)
+
+    yield RequestInput(
+        message=f"Browsing {current_path} -- pick a subfolder to open it, "
+        "go up a level, or select the current folder to scope the "
+        "workbook search to it:",
+        response_schema=str,
+        payload={"choices": choices},
+    )
+
+
+def resolve_folder_navigation(node_input: str, ctx: Context):
+    """Apply the user's folder-navigation choice: descend into a subfolder,
+    go up one level, or confirm the current folder as the workbook search
+    scope. Folder paths are tracked as a plain string in ctx.state rather
+    than resolved via a parent-lookup API call -- since navigation only
+    ever moves relative to a path this node already knows, going up is
+    just string manipulation."""
+    current_path = ctx.state.get("current_folder_path", "/")
+
+    if node_input.startswith(FOLDER_NAV_SELECT_CHOICE):
+        ctx.state["selected_folder_path"] = "" if current_path == "/" else current_path
+        yield Event(route="select", output=node_input)  # type: ignore[reportCallIssue]
+        return
+
+    if node_input == FOLDER_NAV_UP_CHOICE:
+        parent_path = current_path.rsplit("/", 1)[0]
+        ctx.state["current_folder_path"] = parent_path or "/"
+        yield Event(route="navigate", output=node_input)  # type: ignore[reportCallIssue]
+        return
+
+    if current_path == "/":
+        ctx.state["current_folder_path"] = f"/{node_input}"
+    else:
+        ctx.state["current_folder_path"] = f"{current_path}/{node_input}"
+    yield Event(route="navigate", output=node_input)  # type: ignore[reportCallIssue]
 
 
 def resolve_workbook_selection(node_input: str, ctx: Context):
@@ -392,6 +452,31 @@ retrieve_onedrive_drives = Agent(
 )
 
 
+retrieve_folder_children = Agent(
+    name="retrieve_folder_children",
+    model=MODEL,
+    mode="single_turn",
+    tools=[composio_toolset],
+    output_schema=list[FolderItem],
+    output_key="folder_children",
+    before_model_callback=require_tool_before_reply("ONE_DRIVE_LIST_FOLDER_CHILDREN"),
+    after_model_callback=guard_structured_output("folder_children"),
+    instruction="""
+    You have access to Composio tools via MCP.
+    CRITICAL: For the user's request, you MUST exclusively call the
+    'ONE_DRIVE_LIST_FOLDER_CHILDREN' tool.
+    Do not attempt to answer using general knowledge or seek other tools.
+    Always prioritize tool execution as your very first step.
+
+    Call the tool with drive_id={selected_drive_id} and
+    folder_path={current_folder_path}.
+
+    After the tool returns, respond with only the child items that are
+    folders (ignore files), as id/name pairs with is_folder set to true.
+    """,
+)
+
+
 retrieve_workbooks = Agent(
     name="retrieve_workbooks",
     model=MODEL,
@@ -407,9 +492,10 @@ retrieve_workbooks = Agent(
     Do not attempt to answer using general knowledge or seek other tools.
     Always prioritize tool execution as your very first step.
 
-    Call the tool with drive_id={selected_drive_id} to list every workbook on
-    the drive, searching recursively across all folders rather than a single
-    folder.
+    Call the tool with drive_id={selected_drive_id}. If
+    {selected_folder_path?} is non-empty, also pass it as path so the
+    search is scoped to that folder (and its subfolders); if it's empty,
+    omit path and search the whole drive recursively from the root.
 
     After the tool returns, respond with only the files whose name ends in
     .xlsx, .xlsm, or .xls, as id/name/path triples, where path is the file's
@@ -475,6 +561,7 @@ check_onedrive_drives = raise_if_tool_error(
         "account to set it up, then try again."
     ),
 )
+check_folder_children = raise_if_tool_error("folder_children")
 check_onedrive_workbooks = raise_if_tool_error("onedrive_workbooks")
 check_workbook_sheets = raise_if_tool_error("workbook_sheets")
 check_sheet_headers = raise_if_tool_error("sheet_headers")
@@ -493,9 +580,19 @@ response_handle_config_impl_node = Workflow(
         (
             user_input_drive,
             resolve_drive_selection,
-            retrieve_workbooks,
-            check_onedrive_workbooks,
+            retrieve_folder_children,
+            check_folder_children,
         ),
+        (
+            check_folder_children,
+            {"retry": retrieve_folder_children, "ok": user_input_folder_navigation},
+        ),
+        (user_input_folder_navigation, resolve_folder_navigation),
+        (
+            resolve_folder_navigation,
+            {"navigate": retrieve_folder_children, "select": retrieve_workbooks},
+        ),
+        (retrieve_workbooks, check_onedrive_workbooks),
         (check_onedrive_workbooks, {"retry": retrieve_workbooks, "ok": user_input_workbook}),
         (
             user_input_workbook,
