@@ -285,7 +285,11 @@ async def _detect_site_type(page: Page) -> str:
     vendors that only reveal themselves once a challenge page renders.
     Returns "generic" if nothing matches.
     """
-    cookie_names = {c.get("name", "").lower() for c in await page.context.cookies()}
+    # Scoped to the current page's URL -- context.cookies() with no filter
+    # returns every cookie stored across every domain visited so far in this
+    # persistent context, which would leak an earlier site's vendor cookie
+    # (e.g. a stray "_px*") into every later, unrelated navigation.
+    cookie_names = {c.get("name", "").lower() for c in await page.context.cookies(page.url)}
 
     if any(name.startswith("_px") for name in cookie_names):
         return "perimeterx"
