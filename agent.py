@@ -7,15 +7,19 @@ from google.adk import Event, Workflow
 from google.adk.agents.context import Context
 from google.adk.events import RequestInput
 
-import browser_manager
-from sub_agents.end_system_node import response_end_node
-from sub_agents.handle_job_request_agent import response_job_agent
-
+# Loaded here, before the local imports below, since those modules
+# (transitively, e.g. handle_config_impl_agent.py) read Composio/Google env
+# vars at import time and need .env already loaded by then.
 load_dotenv()
+
+import browser_manager  # noqa: E402
+from sub_agents.end_system_node import response_end_node  # noqa: E402
+from sub_agents.handle_job_request_agent import response_job_agent  # noqa: E402
 
 warnings.filterwarnings("ignore", message=".*BaseAuthenticatedTool.*")
 
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
+MODEL = os.getenv("MODEL")
 COMPOSIO_API_KEY = os.getenv("COMPOSIO_API_KEY")
 COMPOSIO_USER_ID = os.getenv("COMPOSIO_USER_ID")
 
@@ -25,6 +29,8 @@ if not COMPOSIO_API_KEY:
     raise ValueError("COMPOSIO_API_KEY is not set in the environment.")
 if not COMPOSIO_USER_ID:
     raise ValueError("COMPOSIO_USER_ID is not set in the environment.")
+if not MODEL:
+    raise ValueError("MODEL is not set in the environment.")
 
 
 async def system_start_user_message():

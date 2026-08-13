@@ -141,6 +141,9 @@ cp .\.env.example .\.env
 
 > Note: this dashboard flow is accurate as of 11/08/2026 and may drift if Composio changes their UI - worth a quick sanity check against the live dashboard if the steps above don't match what you see.
 
+5c). (Optional) Change the `MODEL` env variable in `.env` to [another gemini model](https://ai.google.dev/gemini-api/docs/models) for use across agents, i.e. temporary service unavailability with the current model. 
+Ideally should be another non-frontier model as anything else is overkill for the current system.
+
 6). Start the agent system!
 
 ```bash
