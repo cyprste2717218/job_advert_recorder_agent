@@ -68,11 +68,12 @@ def load_config_into_context(ctx: Context):
         data = json.loads(CONFIG_PATH.read_text())
 
         # Maps config.json's on-disk field names to the ctx.state keys used by
-        # resolve_drive_selection/resolve_workbook_selection/resolve_sheet_selection.
+        # resolve_drive_selection/resolve_folder_navigation/resolve_sheet_selection.
         FIELD_TO_STATE_KEY = {
             "spreadsheet_id": "selected_workbook_id",
             "worksheet_name": "selected_sheet_name",
             "drive_id": "selected_drive_id",
+            "folder_path": "selected_folder_path",
             "working_dir": "working_dir",
             "sheet_headers": "sheet_headers",
         }

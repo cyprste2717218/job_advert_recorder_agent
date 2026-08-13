@@ -13,7 +13,7 @@ from google.adk.tools.mcp_tool.mcp_session_manager import StreamableHTTPConnecti
 from google.adk.tools.mcp_tool.mcp_toolset import McpToolset
 from google.genai import types
 
-from models.schemas import NamedItem, WorkbookItem
+from models.schemas import FolderItem, NamedItem
 
 MODEL = os.getenv("MODEL")
 COMPOSIO_API_KEY = os.getenv("COMPOSIO_API_KEY")
@@ -219,7 +219,7 @@ _session = composio_client.sessions.create(
                 "EXCEL_GET_WORKSHEET_USED_RANGE",
             ]
         },
-        "one_drive": {"enable": ["ONE_DRIVE_LIST_DRIVES"]},
+        "one_drive": {"enable": ["ONE_DRIVE_LIST_DRIVES", "ONE_DRIVE_LIST_FOLDER_CHILDREN"]},
     },
     preload={
         "tools": [
@@ -227,6 +227,7 @@ _session = composio_client.sessions.create(
             "EXCEL_LIST_WORKSHEETS",
             "EXCEL_GET_WORKSHEET_USED_RANGE",
             "ONE_DRIVE_LIST_DRIVES",
+            "ONE_DRIVE_LIST_FOLDER_CHILDREN",
         ]
     },
     mcp=True,
@@ -293,6 +294,7 @@ def write_config_file(ctx: Context):
         "worksheet_name": ctx.state.get("selected_sheet_name"),
         "working_dir": working_dir,
         "drive_id": ctx.state.get("selected_drive_id"),
+        "folder_path": ctx.state.get("selected_folder_path", ""),
         "sheet_headers": ctx.state.get("sheet_headers", []),
     }
     config_path.write_text(json.dumps(config, indent=2))
@@ -316,15 +318,6 @@ def user_input_sheet(node_input):
     )
 
 
-def user_input_workbook(node_input):
-    choices = [f"{w.get('name', 'unknown')} ({w.get('path', 'unknown')})" for w in node_input]
-    yield RequestInput(
-        message="Choose a workbook",
-        response_schema=str,
-        payload={"choices": choices},
-    )
-
-
 def user_input_drive(node_input):
     choices = [d.get("name", d.get("id", "unknown")) for d in node_input]
     yield RequestInput(
@@ -335,31 +328,77 @@ def user_input_drive(node_input):
 
 
 def resolve_drive_selection(node_input: str, ctx: Context):
-    """Resolve the user-picked drive name to an id and stash it in state."""
+    """Resolve the user-picked drive name to an id and stash it in state.
+
+    Also resets folder navigation back to the drive root, since a freshly
+    selected drive has no relationship to whatever folder was being browsed
+    for a previously selected drive (relevant on a retry loop back to
+    node 1)."""
     drives = ctx.state.get("onedrive_drives", [])
     drive = next((d for d in drives if d.get("name") == node_input), None)
     ctx.state["selected_drive_id"] = drive["id"] if drive else None
+    ctx.state["current_folder_path"] = "/"
 
     yield Event(output=node_input)
 
 
-def resolve_workbook_selection(node_input: str, ctx: Context):
-    """Resolve the user-picked "name (path)" choice to a workbook and stash
-    its id/name/path in state."""
-    workbooks = ctx.state.get("onedrive_workbooks", [])
-    workbook = next(
-        (
-            w
-            for w in workbooks
-            if f"{w.get('name', 'unknown')} ({w.get('path', 'unknown')})" == node_input
-        ),
-        None,
+FOLDER_NAV_UP_CHOICE = ".. (up one level)"
+
+
+def user_input_folder_navigation(node_input, ctx: Context):
+    """Present the current folder's subfolders and workbook files, plus an
+    "up a level" option, so the user can walk the drive's folder tree and
+    finalize their choice by picking a workbook directly rather than a
+    separate folder-then-workbook selection step."""
+    current_path = ctx.state.get("current_folder_path", "/")
+    folder_names = [f.get("name", "unknown") for f in node_input if f.get("is_folder")]
+    workbook_names = [f.get("name", "unknown") for f in node_input if not f.get("is_folder")]
+
+    choices = []
+    if current_path != "/":
+        choices.append(FOLDER_NAV_UP_CHOICE)
+    choices.extend(folder_names)
+    choices.extend(workbook_names)
+
+    yield RequestInput(
+        message=f"Browsing {current_path} -- pick a subfolder to open it, "
+        "go up a level, or pick a workbook to select it:",
+        response_schema=str,
+        payload={"choices": choices},
     )
-    ctx.state["selected_workbook_id"] = workbook["id"] if workbook else None
-    ctx.state["selected_workbook_name"] = workbook["name"] if workbook else node_input
-    ctx.state["selected_workbook_path"] = workbook["path"] if workbook else ""
 
-    yield Event(output=node_input)
+
+def resolve_folder_navigation(node_input: str, ctx: Context):
+    """Apply the user's folder-navigation choice: descend into a subfolder,
+    go up one level, or confirm a workbook as the final selection. Folder
+    paths are tracked as a plain string in ctx.state rather than resolved
+    via a parent-lookup API call -- since navigation only ever moves
+    relative to a path this node already knows, going up is just string
+    manipulation."""
+    current_path = ctx.state.get("current_folder_path", "/")
+
+    if node_input == FOLDER_NAV_UP_CHOICE:
+        parent_path = current_path.rsplit("/", 1)[0]
+        ctx.state["current_folder_path"] = parent_path or "/"
+        yield Event(route="navigate", output=node_input)  # type: ignore[reportCallIssue]
+        return
+
+    children = ctx.state.get("folder_children", [])
+    item = next((f for f in children if f.get("name") == node_input), None)
+
+    if item is not None and not item.get("is_folder"):
+        ctx.state["selected_folder_path"] = "" if current_path == "/" else current_path
+        ctx.state["selected_workbook_id"] = item["id"]
+        ctx.state["selected_workbook_name"] = item["name"]
+        ctx.state["selected_workbook_path"] = item.get("path", "")
+        yield Event(route="select", output=node_input)  # type: ignore[reportCallIssue]
+        return
+
+    if current_path == "/":
+        ctx.state["current_folder_path"] = f"/{node_input}"
+    else:
+        ctx.state["current_folder_path"] = f"{current_path}/{node_input}"
+    yield Event(route="navigate", output=node_input)  # type: ignore[reportCallIssue]
 
 
 def resolve_sheet_selection(node_input: str, ctx: Context):
@@ -388,28 +427,31 @@ retrieve_onedrive_drives = Agent(
 )
 
 
-retrieve_workbooks = Agent(
-    name="retrieve_workbooks",
+retrieve_folder_children = Agent(
+    name="retrieve_folder_children",
     model=MODEL,  # type: ignore[reportArgumentType]
     mode="single_turn",
     tools=[composio_toolset],
-    output_schema=list[WorkbookItem],
-    output_key="onedrive_workbooks",
-    before_model_callback=require_tool_before_reply("EXCEL_LIST_FILES"),
-    after_model_callback=guard_structured_output("onedrive_workbooks"),
+    output_schema=list[FolderItem],
+    output_key="folder_children",
+    before_model_callback=require_tool_before_reply("ONE_DRIVE_LIST_FOLDER_CHILDREN"),
+    after_model_callback=guard_structured_output("folder_children"),
     instruction="""
     You have access to Composio tools via MCP.
-    CRITICAL: For the user's request, you MUST exclusively call the 'EXCEL_LIST_FILES' tool.
+    CRITICAL: For the user's request, you MUST exclusively call the
+    'ONE_DRIVE_LIST_FOLDER_CHILDREN' tool.
     Do not attempt to answer using general knowledge or seek other tools.
     Always prioritize tool execution as your very first step.
 
-    Call the tool with drive_id={selected_drive_id} to list every workbook on
-    the drive, searching recursively across all folders rather than a single
-    folder.
+    Call the tool with drive_id={selected_drive_id} and
+    folder_path={current_folder_path}.
 
-    After the tool returns, respond with only the files whose name ends in
-    .xlsx, .xlsm, or .xls, as id/name/path triples, where path is the file's
-    full path within the drive (e.g. "/Documents/Jobs/Tracker.xlsx").
+    After the tool returns, respond with the child items that are either
+    folders, or workbook files whose name ends in .xlsx, .xlsm, or .xls
+    (ignore all other file types). For folders, respond with id/name and
+    is_folder set to true. For workbook files, respond with id/name,
+    is_folder set to false, and path set to the file's full path within
+    the drive (e.g. "/Documents/Jobs/Tracker.xlsx").
     """,
 )
 
@@ -471,7 +513,7 @@ check_onedrive_drives = raise_if_tool_error(
         "account to set it up, then try again."
     ),
 )
-check_onedrive_workbooks = raise_if_tool_error("onedrive_workbooks")
+check_folder_children = raise_if_tool_error("folder_children")
 check_workbook_sheets = raise_if_tool_error("workbook_sheets")
 check_sheet_headers = raise_if_tool_error("sheet_headers")
 
@@ -489,16 +531,19 @@ response_handle_config_impl_node = Workflow(
         (
             user_input_drive,
             resolve_drive_selection,
-            retrieve_workbooks,
-            check_onedrive_workbooks,
+            retrieve_folder_children,
+            check_folder_children,
         ),
-        (check_onedrive_workbooks, {"retry": retrieve_workbooks, "ok": user_input_workbook}),
         (
-            user_input_workbook,
-            resolve_workbook_selection,
-            retrieve_sheets,
-            check_workbook_sheets,
+            check_folder_children,
+            {"retry": retrieve_folder_children, "ok": user_input_folder_navigation},
         ),
+        (user_input_folder_navigation, resolve_folder_navigation),
+        (
+            resolve_folder_navigation,
+            {"navigate": retrieve_folder_children, "select": retrieve_sheets},
+        ),
+        (retrieve_sheets, check_workbook_sheets),
         (check_workbook_sheets, {"retry": retrieve_sheets, "ok": user_input_sheet}),
         (
             user_input_sheet,
