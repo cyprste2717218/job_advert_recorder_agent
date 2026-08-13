@@ -86,6 +86,15 @@ flowchart TD
     linkStyle default stroke:#595959,stroke-width:1px
 ```
 
+## Headless Chromium lifecycle
+
+`browser_manager.py` owns the headless Chromium instance as module-level singleton state (not `ctx.state`, since Playwright objects aren't JSON-serializable). Node 0a calls `launch()`, which starts Playwright, launches Chromium headless, and opens a single persistent `BrowserContext` that's reused across every job URL for the rest of the run rather than relaunched per extraction. Node 0d (and an `atexit` fallback for interrupted runs) calls `close()` to tear it all down on shutdown.
+
+Immediately after the context is created, `launch()` applies [playwright-stealth](https://github.com/AtuboDad/playwright_stealth) to it (`Stealth(...).apply_stealth_async(_browser_context)`) before any page is opened.
+
+This patches the browser's JS environment (`navigator.webdriver`, plugins, permissions, WebGL vendor strings, etc.) so job boards are less likely to fingerprint the session as headless/automated and block the scrape. 
+All evasion modules are enabled except `chrome_runtime`, which fakes an extension-only API that would be unnecessary for the web context and a possible tell also.
+
 ## Node summary
 
 
