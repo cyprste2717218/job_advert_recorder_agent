@@ -49,7 +49,7 @@ _atexit_registered = False
 # All evasion modules enabled except chrome_runtime, which fakes the
 # chrome.runtime API that's only ever present in extension-loaded Chrome --
 # enabling it on a vanilla headless context is itself a detectable tell.
-# See https://scrapfly.io/blog/posts/playwright-stealth-bypass-bot-detection
+
 _stealth = Stealth(
     chrome_app=True,
     chrome_csi=True,
