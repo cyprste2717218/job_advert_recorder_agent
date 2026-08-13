@@ -127,8 +127,17 @@ cp .\.env.example .\.env
 
 5b). Get your Composio API key and User ID
 - Log in to the [Composio dashboard](https://dashboard.composio.dev/login).
-- Go to Settings → API Keys and copy your Composio API key. Write this to `COMPOSIO_API_KEY` in `.env`.
+- Go to the **API Keys** section and click **Create API Key** (top right). When creating the key, make sure the following scopes are enabled — the agent's Excel/OneDrive MCP calls and session management will fail with confusing auth errors if any are missing:
+  - Tools (Read)
+  - Tool Execution (Write)
+  - Sessions (Write)
+  - Connected Accounts (Read & Write)
+  - Auth Configs (Read & Write)
+  - Toolkits (Read & Write)
+- Copy the generated key and write it to `COMPOSIO_API_KEY` in `.env`.
 - Decide on a stable user identifier to scope sessions, in this system a username would make sense ([see Composio's Guidance on why here](https://docs.composio.dev/docs/how-composio-works#:~:text=A%20user%20is%20an%20identifier%20from%20your%20app.%20Composio%20stores%20connections%20under%20that%20ID%2C%20so%20tools%20run%20with%20the%20right%20account%20and%20stay%20isolated%20from%20other%20users.%20Use%20a%20stable%20identifier%20like%20your%20database%20ID%2C%20never%20one%20that%20can%20change.)). Use this for `COMPOSIO_USER_ID` in `.env`.
+
+> Note: this dashboard flow is accurate as of 11/08/2026 and may drift if Composio changes their UI — worth a quick sanity check against the live dashboard if the steps above don't match what you see.
 
 6). Start the agent system!
 
