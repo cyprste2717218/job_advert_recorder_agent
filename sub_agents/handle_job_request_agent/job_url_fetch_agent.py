@@ -1,4 +1,5 @@
 import json
+import os
 
 from google.adk import Workflow
 from google.adk.agents.context import Context
@@ -13,6 +14,7 @@ from .update_spreadsheet_node import response_update_spreadsheet_node
 
 MAX_JOB_URL_FETCH_ATTEMPTS = 3
 MAX_EXTRACTION_ATTEMPTS = 3
+MODEL = os.getenv("MODEL")
 
 
 def router_1(node_input: str, ctx: Context):
@@ -134,7 +136,7 @@ def job_url_fetch_done() -> Event:
 
 
 extract_job_spec_details_agent = Agent(
-    model="gemini-3.1-flash-lite",
+    model=MODEL,  # type: ignore[reportArgumentType]
     name="extract_job_spec_details_agent",
     description=(
         "Extracts structured job posting details from a URL for the fields the user has configured."
@@ -206,7 +208,7 @@ check_job_spec_details = raise_if_extraction_error(
 
 
 verify_job_spec_details_agent = Agent(
-    model="gemini-3.1-flash-lite",
+    model=MODEL,  # type: ignore[reportArgumentType]
     name="verify_job_spec_details_agent",
     description=(
         "Independently fact-checks extracted job posting details against the source page, "

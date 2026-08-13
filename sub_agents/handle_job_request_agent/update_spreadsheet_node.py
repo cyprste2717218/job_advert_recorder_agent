@@ -2,7 +2,6 @@ import json
 import os
 
 from composio import Composio
-from dotenv import load_dotenv
 from google.adk import Workflow
 from google.adk.agents.context import Context
 from google.adk.agents.llm_agent import Agent
@@ -14,13 +13,11 @@ from pydantic import BaseModel
 
 from models.schemas import SpreadsheetWriteResult
 
-load_dotenv()
-
-MODEL = "gemini-3.1-flash-lite"
-MAX_WRITE_ATTEMPTS = 3
-
 COMPOSIO_API_KEY = os.getenv("COMPOSIO_API_KEY")
 COMPOSIO_USER_ID = os.getenv("COMPOSIO_USER_ID")
+MODEL = os.getenv("MODEL")
+
+MAX_WRITE_ATTEMPTS = 3
 
 composio_client = Composio(api_key=COMPOSIO_API_KEY)  # type: ignore[reportArgumentType]
 
@@ -84,7 +81,7 @@ def guard_structured_output(state_key: str):
 # Node 14 (agent): access the selected sheet and write the in-memory record
 # as a new row via the Composio MCP server.
 write_job_record_agent = Agent(
-    model=MODEL,
+    model=MODEL,  # type: ignore[reportArgumentType]
     name="write_job_record_agent",
     description=(
         "Writes the extracted job posting record as a new row in the configured Excel "

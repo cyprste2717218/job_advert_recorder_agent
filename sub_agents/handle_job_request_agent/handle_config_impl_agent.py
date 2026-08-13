@@ -5,7 +5,6 @@ import time
 from pathlib import Path
 
 from composio import Composio
-from dotenv import load_dotenv
 from google.adk import Workflow
 from google.adk.agents.context import Context
 from google.adk.agents.llm_agent import Agent
@@ -16,12 +15,14 @@ from google.genai import types
 
 from models.schemas import FolderItem, NamedItem, WorkbookItem
 
+MODEL = os.getenv("MODEL")
+COMPOSIO_API_KEY = os.getenv("COMPOSIO_API_KEY")
+COMPOSIO_USER_ID = os.getenv("COMPOSIO_USER_ID")
+
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 CONFIG_PATH = PROJECT_ROOT / "config.json"
 
 REQUIRED_FIELDS = {"spreadsheet_id", "worksheet_name", "working_dir"}
-
-load_dotenv()
 
 
 def config_check_present_check():
@@ -204,11 +205,6 @@ def require_tool_before_reply(tool_name: str):
 
     return _callback
 
-
-MODEL = "gemini-3.1-flash-lite"
-
-COMPOSIO_API_KEY = os.getenv("COMPOSIO_API_KEY")
-COMPOSIO_USER_ID = os.getenv("COMPOSIO_USER_ID")
 
 composio_client = Composio(api_key=COMPOSIO_API_KEY)  # type: ignore[reportArgumentType]
 
@@ -435,7 +431,7 @@ def resolve_sheet_selection(node_input: str, ctx: Context):
 
 retrieve_onedrive_drives = Agent(
     name="retrieve_onedrive_drives",
-    model=MODEL,
+    model=MODEL,  # type: ignore[reportArgumentType]
     mode="single_turn",
     tools=[composio_toolset],
     output_schema=list[NamedItem],
@@ -479,7 +475,7 @@ retrieve_folder_children = Agent(
 
 retrieve_workbooks = Agent(
     name="retrieve_workbooks",
-    model=MODEL,
+    model=MODEL,  # type: ignore[reportArgumentType]
     mode="single_turn",
     tools=[composio_toolset],
     output_schema=list[WorkbookItem],
@@ -506,7 +502,7 @@ retrieve_workbooks = Agent(
 
 retrieve_sheets = Agent(
     name="retrieve_sheets",
-    model=MODEL,
+    model=MODEL,  # type: ignore[reportArgumentType]
     mode="single_turn",
     tools=[composio_toolset],
     output_schema=list[NamedItem],
@@ -529,7 +525,7 @@ retrieve_sheets = Agent(
 
 retrieve_sheet_headers = Agent(
     name="retrieve_sheet_headers",
-    model=MODEL,
+    model=MODEL,  # type: ignore[reportArgumentType]
     mode="single_turn",
     tools=[composio_toolset],
     output_schema=list[str],
