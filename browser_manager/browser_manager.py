@@ -23,6 +23,7 @@ from __future__ import annotations
 import asyncio
 import atexit
 import contextlib
+import random
 import sys
 
 from playwright.async_api import (
@@ -45,6 +46,7 @@ _browser: Browser | None = None
 _browser_context: BrowserContext | None = None
 _page: Page | None = None
 _atexit_registered = False
+_perimeterx_fingerprint_patch_applied = False
 
 # All evasion modules enabled except chrome_runtime, which fakes the
 # chrome.runtime API that's only ever present in extension-loaded Chrome --
@@ -71,6 +73,29 @@ _stealth = Stealth(
     sec_ch_ua=True,
     webgl_vendor=True,
 )
+
+
+async def handle_route(route):
+    """
+    Intercepts and removes all headers on requests leaking automation and/or
+    ensuring consistent accept headers
+    """
+    headers = route.request.headers.copy()
+
+    # Remove headers that leak automation
+    headers.pop("x-playwright", None)
+    headers.pop("x-devtools", None)
+
+    # Ensure consistent Accept header
+    if route.request.resource_type == "document":
+        headers["Accept"] = (
+            "text/html,application/xhtml+xml,"
+            "application/xml;q=0.9,image/avif,"
+            "image/webp,image/apng,*/*;q=0.8"
+        )
+        headers["Upgrade-Insecure-Requests"] = "1"
+
+    await route.continue_(headers=headers)
 
 
 def _sync_close() -> None:
@@ -118,14 +143,49 @@ async def launch() -> BrowserContext:
 
     _playwright = await async_playwright().start()
     try:
-        _browser = await _playwright.chromium.launch(headless=True)
+        _browser = await _playwright.chromium.launch(
+            headless=True,
+            args=[
+                "--disable-blink-features=AutomationControlled",
+                "--disable-features=IsolateOrigins,site-per-process",
+                "--disable-dev-shm-usage",
+                "--disable-accelerated-2d-canvas",
+                "--disable-gpu-sandbox",
+                "--disable-web-security",
+                "--no-first-run",
+                "--no-zygote",
+            ],
+        )
     except PlaywrightError as e:
         if "Executable doesn't exist" not in str(e):
             raise
         await _install_chromium()
         _browser = await _playwright.chromium.launch(headless=True)
 
-    _browser_context = await _browser.new_context()
+    _browser_context = await _browser.new_context(
+        viewport={"width": 1920, "height": 1080},
+        screen={"width": 1920, "height": 1080},
+        user_agent=(
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/124.0.0.0 Safari/537.36"
+        ),
+        locale="en-US",
+        timezone_id="America/New_York",
+        geolocation={"latitude": 40.7128, "longitude": -74.0060},
+        permissions=["geolocation"],
+        color_scheme="light",
+        has_touch=False,
+        is_mobile=False,
+        java_script_enabled=True,
+        extra_http_headers={
+            "Accept-Language": "en-US,en;q=0.9",
+            "Accept-Encoding": "gzip, deflate, br",
+            "sec-ch-ua": ('"Chromium";v="124", "Google Chrome";v="124", "Not-A.Brand";v="99"'),
+            "sec-ch-ua-mobile": "?0",
+            "sec-ch-ua-platform": '"Windows"',
+        },
+    )
     await _stealth.apply_stealth_async(_browser_context)
     return _browser_context
 
@@ -135,6 +195,84 @@ def get_context() -> BrowserContext:
     if _browser_context is None:
         raise RuntimeError("Chromium context not launched. Call launch() first.")
     return _browser_context
+
+
+async def _apply_perimeterx_fingerprint_patch(page: Page) -> None:
+    """Injects a script that perturbs canvas/AudioContext fingerprint output.
+
+    Registered once via `add_init_script`, which persists across every future
+    navigation on this page -- re-adding it on each call would just stack
+    duplicate listeners, hence the module-level guard.
+    """
+    global _perimeterx_fingerprint_patch_applied
+    if _perimeterx_fingerprint_patch_applied:
+        return
+    await page.add_init_script("""
+        const originalToDataURL = HTMLCanvasElement.prototype.toDataURL;
+        HTMLCanvasElement.prototype.toDataURL = function(type) {
+            if (type === 'image/png') {
+                const ctx = this.getContext('2d');
+                if (ctx) {
+                    const imageData = ctx.getImageData(
+                        0, 0, this.width, this.height
+                    );
+                    for (let i = 0; i < imageData.data.length; i += 4) {
+                        imageData.data[i] ^= 1;
+                    }
+                    ctx.putImageData(imageData, 0, 0);
+                }
+            }
+            return originalToDataURL.apply(this, arguments);
+        };
+
+        const originalGetFloatFrequencyData =
+            AnalyserNode.prototype.getFloatFrequencyData;
+        AnalyserNode.prototype.getFloatFrequencyData = function(array) {
+            originalGetFloatFrequencyData.call(this, array);
+            for (let i = 0; i < array.length; i++) {
+                array[i] += Math.random() * 0.0001;
+            }
+        };
+    """)
+    _perimeterx_fingerprint_patch_applied = True
+
+
+async def _wait_for_cloudflare_challenge(page: Page) -> bool:
+    """Polls for up to ~15s for a Cloudflare "Just a moment..." interstitial
+    to resolve. Returns False if it's still showing once polling gives up."""
+    for _ in range(15):
+        title = await page.title()
+        content = await page.content()
+        if (
+            "just a moment" not in title.lower()
+            and "checking your browser" not in content.lower()
+            and "cf-challenge" not in content.lower()
+        ):
+            return True
+        await asyncio.sleep(1)
+    return "just a moment" not in (await page.title()).lower()
+
+
+async def _simulate_human_interaction(page: Page) -> None:
+    """Moves the mouse to a few randomized points and scrolls in randomized
+    chunks, matching the behavioural signals DataDome's challenge checks
+    for."""
+    viewport = page.viewport_size or {"width": 1920, "height": 1080}
+    width, height = viewport["width"], viewport["height"]
+
+    for _ in range(random.randint(3, 5)):
+        x = random.randint(100, width - 100)
+        y = random.randint(100, height - 100)
+        await page.mouse.move(x, y, steps=random.randint(10, 25))
+        await asyncio.sleep(random.uniform(0.1, 0.4))
+
+    total_scroll = random.randint(500, 1500)
+    scrolled = 0
+    while scrolled < total_scroll:
+        delta = random.randint(80, 200)
+        await page.mouse.wheel(0, delta)
+        scrolled += delta
+        await asyncio.sleep(random.uniform(0.1, 0.3))
 
 
 async def _get_page() -> Page:
@@ -150,7 +288,7 @@ async def _get_page() -> Page:
     return _page
 
 
-async def navigate_page(url: str) -> dict:
+async def navigate_page(url: str, site_type: str = "generic") -> dict:
     """Navigates the shared browser page to a URL and waits for it to finish loading.
 
     Waits past the initial HTML response for network activity to settle, so
@@ -160,6 +298,12 @@ async def navigate_page(url: str) -> dict:
 
     Args:
         url: The absolute URL to load.
+        site_type: Which anti-bot challenge handling to apply after the page
+            loads: "cloudflare" (waits out the "Just a moment..." interstitial),
+            "datadome" (simulates human mouse/scroll behaviour before checking
+            for a block page), "perimeterx" (patches canvas/audio fingerprint
+            vectors before navigating and checks for a CAPTCHA), or "generic"
+            (no extra handling -- the default).
 
     Returns:
         dict with "status" ("success" or "error"). On success also "title"
@@ -168,10 +312,28 @@ async def navigate_page(url: str) -> dict:
     """
     try:
         page = await _get_page()
+        if site_type == "perimeterx":
+            await _apply_perimeterx_fingerprint_patch(page)
+
+        await page.route("**/*", handle_route)
         await page.goto(url, wait_until="load", timeout=30000)
         # some pages never go fully idle (polling, analytics, etc.); best effort
         with contextlib.suppress(PlaywrightTimeoutError):
             await page.wait_for_load_state("networkidle", timeout=10000)
+
+        if site_type == "cloudflare":
+            if not await _wait_for_cloudflare_challenge(page):
+                return {"status": "error", "error": "Failed to bypass Cloudflare challenge"}
+        elif site_type == "datadome":
+            await asyncio.sleep(2)
+            await _simulate_human_interaction(page)
+            await asyncio.sleep(3)
+            content = await page.content()
+            if "datadome" in content.lower() and "blocked" in content.lower():
+                return {"status": "error", "error": "DataDome blocked the request"}
+        elif site_type == "perimeterx" and await page.query_selector("[data-testid='px-captcha']"):
+            return {"status": "error", "error": "PerimeterX CAPTCHA detected"}
+
         return {"status": "success", "title": await page.title(), "url": page.url}
     except (PlaywrightError, PlaywrightTimeoutError) as e:
         return {"status": "error", "error": str(e)}
@@ -223,9 +385,10 @@ async def click_page_element(selector: str) -> dict:
 
 async def close() -> None:
     """Closes the persistent Chromium context, browser, and Playwright driver."""
-    global _playwright, _browser, _browser_context, _page
+    global _playwright, _browser, _browser_context, _page, _perimeterx_fingerprint_patch_applied
 
     _page = None
+    _perimeterx_fingerprint_patch_applied = False
     if _browser_context is not None:
         await _browser_context.close()
         _browser_context = None
