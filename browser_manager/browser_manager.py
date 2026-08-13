@@ -275,6 +275,38 @@ async def _simulate_human_interaction(page: Page) -> None:
         await asyncio.sleep(random.uniform(0.1, 0.3))
 
 
+async def _detect_site_type(page: Page) -> str:
+    """Best-effort sniff of which anti-bot vendor (if any) is guarding the
+    page just navigated to, so `navigate_page` can apply the matching
+    handling without the caller having to know in advance.
+
+    Checks cookies first (cheap, and set as soon as the vendor's script/edge
+    node has seen the request) then falls back to title/body content for
+    vendors that only reveal themselves once a challenge page renders.
+    Returns "generic" if nothing matches.
+    """
+    cookie_names = {c.get("name", "").lower() for c in await page.context.cookies()}
+
+    if any(name.startswith("_px") for name in cookie_names):
+        return "perimeterx"
+    if "datadome" in cookie_names:
+        return "datadome"
+    if "cf_clearance" in cookie_names:
+        return "cloudflare"
+
+    title = (await page.title()).lower()
+    content = (await page.content()).lower()
+
+    if "just a moment" in title or "checking your browser" in content or "cf-challenge" in content:
+        return "cloudflare"
+    if "datadome" in content:
+        return "datadome"
+    if "px-captcha" in content or "perimeterx" in content:
+        return "perimeterx"
+
+    return "generic"
+
+
 async def _get_page() -> Page:
     """Returns the single shared page, opening it on first use.
 
@@ -288,7 +320,7 @@ async def _get_page() -> Page:
     return _page
 
 
-async def navigate_page(url: str, site_type: str = "generic") -> dict:
+async def navigate_page(url: str, site_type: str = "auto") -> dict:
     """Navigates the shared browser page to a URL and waits for it to finish loading.
 
     Waits past the initial HTML response for network activity to settle, so
@@ -302,8 +334,12 @@ async def navigate_page(url: str, site_type: str = "generic") -> dict:
             loads: "cloudflare" (waits out the "Just a moment..." interstitial),
             "datadome" (simulates human mouse/scroll behaviour before checking
             for a block page), "perimeterx" (patches canvas/audio fingerprint
-            vectors before navigating and checks for a CAPTCHA), or "generic"
-            (no extra handling -- the default).
+            vectors before navigating and checks for a CAPTCHA), "generic" (no
+            extra handling), or "auto" (sniff cookies/content after loading
+            and pick one of the above -- the default). Pass an explicit value
+            if you already know the vendor, since detection only kicks in
+            after the first load and so can't apply PerimeterX's fingerprint
+            patch before that initial navigation.
 
     Returns:
         dict with "status" ("success" or "error"). On success also "title"
@@ -320,6 +356,14 @@ async def navigate_page(url: str, site_type: str = "generic") -> dict:
         # some pages never go fully idle (polling, analytics, etc.); best effort
         with contextlib.suppress(PlaywrightTimeoutError):
             await page.wait_for_load_state("networkidle", timeout=10000)
+
+        if site_type == "auto":
+            site_type = await _detect_site_type(page)
+            if site_type == "perimeterx":
+                # Wasn't applied pre-navigation since detection only runs
+                # after this goto; apply now so it's active for any retry
+                # navigation or subsequent read_page_text/click_page_element.
+                await _apply_perimeterx_fingerprint_patch(page)
 
         if site_type == "cloudflare":
             if not await _wait_for_cloudflare_challenge(page):
