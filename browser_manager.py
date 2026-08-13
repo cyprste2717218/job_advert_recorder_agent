@@ -38,12 +38,39 @@ from playwright.async_api import (
 from playwright.async_api import (
     TimeoutError as PlaywrightTimeoutError,
 )
+from playwright_stealth import Stealth
 
 _playwright: Playwright | None = None
 _browser: Browser | None = None
 _browser_context: BrowserContext | None = None
 _page: Page | None = None
 _atexit_registered = False
+
+# All evasion modules enabled except chrome_runtime, which fakes the
+# chrome.runtime API that's only ever present in extension-loaded Chrome --
+# enabling it on a vanilla headless context is itself a detectable tell.
+
+_stealth = Stealth(
+    chrome_app=True,
+    chrome_csi=True,
+    chrome_load_times=True,
+    chrome_runtime=False,
+    hairline=True,
+    iframe_content_window=True,
+    media_codecs=True,
+    navigator_hardware_concurrency=True,
+    navigator_languages=True,
+    navigator_permissions=True,
+    navigator_platform=True,
+    navigator_plugins=True,
+    navigator_user_agent=True,
+    navigator_user_agent_data=True,
+    navigator_vendor=True,
+    navigator_webdriver=True,
+    error_prototype=True,
+    sec_ch_ua=True,
+    webgl_vendor=True,
+)
 
 
 def _sync_close() -> None:
@@ -99,6 +126,7 @@ async def launch() -> BrowserContext:
         _browser = await _playwright.chromium.launch(headless=True)
 
     _browser_context = await _browser.new_context()
+    await _stealth.apply_stealth_async(_browser_context)
     return _browser_context
 
 
