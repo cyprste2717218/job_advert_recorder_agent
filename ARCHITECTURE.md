@@ -29,7 +29,21 @@ flowchart TD
 
     A --> A2["**Node 2 (function)**\nAsk user which OneDrive\ndrive to use"]
 
-    A2 --> C["**Node 3 (agent)**\nUse Composio MCP server to list spreadsheets\n(.xlsx, .xlsm, or .xls) in the root folder\nof the chosen drive and return their names to the user"]
+    A2 --> FN1["**Node 2a (function)**\nResolve the chosen drive to an id\nand reset folder navigation to the drive root"]
+
+    FN1 --> FN2["**Node 2b (agent)**\nUse Composio MCP server to list the\nsubfolders of the current folder"]
+
+    FN2 --> FN2R{"**Node 2c (routing function)**\nWas the folder-listing agent's\nresponse valid JSON?"}
+
+    FN2R -- "Malformed (retry)" --> FN2
+
+    FN2R -- "Valid JSON" --> FN3["**Node 2d (function)**\nAsk user to open a subfolder,\ngo up a level, or select the\ncurrent folder"]
+
+    FN3 --> FN4{"**Node 2e (routing function)**\nApply the user's choice: update the\ncurrent folder path, or record it as\nthe selected workbook-search scope"}
+
+    FN4 -- "Navigate\n(into a subfolder or up a level)" --> FN2
+
+    FN4 -- "Select this folder" --> C["**Node 3 (agent)**\nUse Composio MCP server to list spreadsheets\n(.xlsx, .xlsm, or .xls) under the selected\nfolder (searched recursively), or the whole\ndrive if the root was selected"]
 
     C --> C2["**Node 4 (function)**\nAsk user which workbook to use"]
 
@@ -70,8 +84,8 @@ flowchart TD
     classDef decision fill:#fef7e0,stroke:#f9ab00,stroke-width:1px,color:#202124,font-size:24px
 
     class Start,Fin,Fin2 terminal
-    class S,Z,N,X,A,A2,C,C2,CO,D,D2,E,F,G,I,K,L,V,W process
-    class R,Q,M,KV,G2 decision
+    class S,Z,N,X,A,A2,FN1,FN2,FN3,C,C2,CO,D,D2,E,F,G,I,K,L,V,W process
+    class R,Q,M,KV,G2,FN2R,FN4 decision
 
     linkStyle default stroke:#595959,stroke-width:1px
 ```
@@ -91,12 +105,17 @@ flowchart TD
 | 0g  | Python function         | Verifies the user's OneDrive/Excel Composio connections are active before the setup flow calls any Composio tool; if a toolkit isn't connected, surfaces a reauth link and blocks until the user completes it                  |
 | 1   | Agent                   | Uses the Composio MCP server to list the OneDrive drives available to the user                                                                                                                                                   |
 | 2   | Python function         | Asks the user which OneDrive drive to use                                                                                                                                                                                        |
-| 3   | Agent                   | Uses the Composio MCP server to list the spreadsheets (.xlsx, .xlsm, or .xls) found in the root folder of the chosen drive and returns their names to the user                                                                   |
+| 2a  | Python function         | Resolves the user-picked drive name to an id and resets folder navigation (`current_folder_path`) back to the drive root, so a re-selected drive doesn't inherit a stale folder from a previous pass through this loop        |
+| 2b  | Agent                   | Uses the Composio MCP server (`ONE_DRIVE_LIST_FOLDER_CHILDREN`) to list the subfolders of the current folder path                                                                                                                |
+| 2c  | Routing (function)      | Checks whether node 2b's response was valid JSON; on malformed output, routes back to node 2b to retry, otherwise proceeds to node 2d                                                                                            |
+| 2d  | Python function         | Asks the user to open a listed subfolder, go up one level (omitted at the drive root), or select the current folder to scope the workbook search to it                                                                          |
+| 2e  | Routing (function)      | Applies the user's choice from node 2d: descending into a subfolder or going up a level updates `current_folder_path` (tracked as a plain string, not resolved via a parent-lookup API call) and loops back to node 2b; selecting the current folder records it in `selected_folder_path` and proceeds to node 3 |
+| 3   | Agent                   | Uses the Composio MCP server to list the spreadsheets (.xlsx, .xlsm, or .xls) found under the folder selected in node 2e (searched recursively), or across the whole drive if the drive root was selected, and returns their names to the user |
 | 4   | Python function         | Asks the user which workbook to use                                                                                                                                                                                              |
 | 5   | Agent                   | Retrieves the sheets within the selected workbook and returns the sheet names to the user                                                                                                                                        |
 | 6   | Python function         | Asks the user which sheet to use                                                                                                                                                                                                 |
 | 7   | Agent                   | Retrieves the column headers of the selected sheet via the Composio MCP server                                                                                                                                                   |
-| 8   | Python function         | Writes a new `config.json` file on the user's system summarising the selected drive, folder, spreadsheet name, sheet name and column headers                                                                                            |
+| 8   | Python function         | Writes a new `config.json` file on the user's system summarising the selected drive, folder path, spreadsheet name, sheet name and column headers                                                                                       |
 | 8a  | Routing (function)      | Re-reads `config.json` to confirm the write in node 8 actually persisted the required fields; on failure routes back to node 1 to restart the whole setup flow, otherwise proceeds to node 9                                   |
 | 9   | Python function         | Asks the user for the page URL (job posting) to extract. On an invalid (non-`https://`) URL, re-prompts itself instead of routing forward                                                                                       |
 | 10  | Agent                   | Given a page URL and the sheet's column headers retrieved from context, reuses the persistent Chromium context to navigate to the page, extract the job-description content relevant to those fields, and build an in-memory record keyed by each field |
