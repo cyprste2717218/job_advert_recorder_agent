@@ -40,6 +40,9 @@ from typing import Any
 import questionary
 from google.adk.cli import cli as adk_cli
 from google.genai import types
+from rich.console import Console
+
+from cli_display import StageDisplay
 
 # ADK warns (UserWarning) the first time each non-stable feature is touched,
 # even for experimental features it ships default_on -- e.g. MCP toolset /
@@ -61,11 +64,13 @@ warnings.filterwarnings(
     module=r"google\.adk\..*",
 )
 
-# Light blue (bolded/italicised where it helps skimming) for everything,
-# except success messages which get green -- currently just
-# response_job_url_fetch_node's "Verification passed" milestone. Router/
-# orchestration nodes (`response_*`) are italicised so the agents doing
-# actual work stand out; everything else is upright.
+# Light blue (bolded/italicised where it helps skimming) for everything.
+# Router/orchestration nodes (`response_*`) are italicised so the agents
+# doing actual work stand out; everything else is upright. The
+# config-presence check and the extract -> verify -> write pipeline are the
+# exception -- their messages are absorbed into a `rich`-based live stage
+# display instead (see `_handle_stage_a_message`/`_handle_stage_b_message`
+# and cli_display.py) rather than printed as plain lines here.
 _original_print_event: Any = None
 
 # LLM `Agent` nodes -- as opposed to the plain function/generator Workflow
@@ -90,19 +95,132 @@ def _style_for_author(author: str) -> str:
     return "italic fg:lightblue" if author.startswith("response_") else "fg:lightblue"
 
 
-def _decorate_job_url_fetch_text(text: str) -> tuple[str, bool]:
-    """response_job_url_fetch_node narrates the extract -> verify loop; give
-    its two milestone messages the requested icon and flag the success one
-    (verification passed) so the caller can colour it green."""
-    success_prefixes = (
-        "Verification passed",
-        "Job details succesfully fetched and updated in your workbook!",
-    )
-    if text.startswith("Extracting job details from:"):
-        return f"🔍 {text}", False
-    if text.startswith(success_prefixes):
-        return f"{text} ✅", True
-    return text, False
+# rich Console shared by both live stage displays below; a single instance is
+# required so they don't fight over cursor/terminal state.
+_console = Console()
+
+# Config-presence check (response_job_agent, github issue #20) and the
+# extract -> verify -> write pipeline (response_job_url_fetch_node /
+# response_update_spreadsheet_node, github issue #21) each narrate their
+# progress purely through Event(message=...) text. These two module-level
+# handles track whichever stage is currently live, matched by exact message
+# text against the known strings those nodes emit (see handle_config_impl_agent.py
+# / agent.py / job_url_fetch_agent.py / update_spreadsheet_node.py) -- there's
+# no state flag on the Event itself to key off instead.
+_stage_a: StageDisplay | None = None
+_stage_b: StageDisplay | None = None
+
+_STAGE_B_STEPS = ["Extracting job details", "Verifying details", "Updating spreadsheet"]
+
+
+def _handle_stage_a_message(author: str, text: str) -> bool:
+    """response_job_agent's config-presence check: a permanent header while
+    "Checking configuration"/"Loaded configuration" is underway, with each
+    sub-message swapped in below it, collapsing to the outcome once the
+    check (and, if config was present, the subsequent load) concludes.
+    Returns True if this event was absorbed into the stage display."""
+    global _stage_a
+
+    if author != "response_job_agent":
+        return False
+
+    if text == "Checking if workbook/spreadsheet details configured yet...":
+        _stage_a = StageDisplay(_console, steps=["Checking configuration"])
+        _stage_a.start()
+        _stage_a.set_substep(text)
+        return True
+
+    if _stage_a is None:
+        return False
+
+    if text == "Config is missing required fields.":
+        _stage_a.set_substep(text)
+        _stage_a.finish(text, icon="➡️", style="bold yellow")
+        _stage_a = None
+        return True
+
+    if text == "All good, config is present.":
+        _stage_a.set_substep(text)
+        return True
+
+    if text == "Loaded workbook/sheet configuration from config.json.":
+        _stage_a.set_substep(text)
+        _stage_a.finish(text, icon="✅", style="bold green")
+        _stage_a = None
+        return True
+
+    if text == "Error loading configuration, trying again...":
+        _stage_a.set_substep(text)
+        return True
+
+    if text.startswith("Unable to load config.json into context after"):
+        _stage_a.set_substep(text)
+        _stage_a.finish(text, icon="❌", style="bold red")
+        _stage_a = None
+        return True
+
+    return False
+
+
+def _handle_stage_b_message(author: str, text: str) -> bool:
+    """The extract -> verify -> write pipeline: a permanent header showing
+    the current macro-step next to a progress bar, with each sub-message
+    swapped in below it, collapsing to the outcome once the whole pipeline
+    concludes. Returns True if this event was absorbed into the stage
+    display."""
+    global _stage_b
+
+    if author == "response_job_url_fetch_node" and text.startswith("Extracting job details from:"):
+        _stage_b = StageDisplay(_console, steps=_STAGE_B_STEPS)
+        _stage_b.start()
+        _stage_b.set_substep(text)
+        return True
+
+    if _stage_b is None:
+        return False
+
+    if author == "response_job_url_fetch_node":
+        if text == "Job details succesfully fetched and updated in your workbook!":
+            _stage_b.set_substep(text)
+            _stage_b.finish(text, icon="✅", style="bold green")
+            _stage_b = None
+            return True
+        if text == "Extraction accepted, proceeding to verification...":
+            _stage_b.set_step(1)
+            _stage_b.set_substep(text)
+            return True
+        if text == "Verification passed, writing to spreadsheet...":
+            _stage_b.set_step(2)
+            _stage_b.set_substep(text)
+            return True
+        if text == "Verification found issues with the extracted details, retrying...":
+            _stage_b.set_step(0)
+            _stage_b.set_substep(text)
+            return True
+        if text.startswith("Malformed response for 'job_spec_"):
+            _stage_b.set_substep(text)
+            return True
+        return False
+
+    if author == "response_update_spreadsheet_node":
+        _stage_b.set_substep(text)
+        return True
+
+    return False
+
+
+def _cleanup_live_stages() -> None:
+    """Called from `main`'s finally block: if the graph raised out of a stage
+    (e.g. verification/write attempts exhausted) instead of reaching that
+    stage's success/failure message, stop its Live display rather than
+    leaving an animated spinner behind for the traceback to print through."""
+    global _stage_a, _stage_b
+    if _stage_a is not None:
+        _stage_a.abort()
+        _stage_a = None
+    if _stage_b is not None:
+        _stage_b.abort()
+        _stage_b = None
 
 
 def _print_event_pretty(event: Any, jsonl: bool = False, session_id: Any = None) -> None:
@@ -126,15 +244,10 @@ def _print_event_pretty(event: Any, jsonl: bool = False, session_id: Any = None)
     )
     if text_parts:
         text = "".join(text_parts)
-        is_success = False
-        if author == "response_job_url_fetch_node":
-            text, is_success = _decorate_job_url_fetch_text(text)
-        if is_success:
-            questionary.print(f"{author}: ", style="bold fg:green", end="")
-            questionary.print(text, style="fg:green")
-        else:
-            questionary.print(f"{author}: ", style="bold fg:lightblue", end="")
-            questionary.print(text, style=_style_for_author(author))
+        if _handle_stage_a_message(author, text) or _handle_stage_b_message(author, text):
+            return
+        questionary.print(f"{author}: ", style="bold fg:lightblue", end="")
+        questionary.print(text, style=_style_for_author(author))
     elif event.long_running_tool_ids:
         questionary.print(f"{author}: (paused for input...)", style="bold fg:lightblue")
 
@@ -270,7 +383,15 @@ def main() -> None:
     # Re-dispatch straight into ADK's own `run` command with our patch
     # already applied, so all of its flags (--replay, --resume, --jsonl,
     # --save_session, ...) keep working unmodified.
-    cli_run.main(args=sys.argv[1:], prog_name="run_cli_select.py")
+    try:
+        cli_run.main(args=sys.argv[1:], prog_name="run_cli_select.py")
+    finally:
+        # If a live stage display (see _handle_stage_a_message/
+        # _handle_stage_b_message) was left running -- e.g. the graph raised
+        # out of a retry loop instead of reaching that stage's terminal
+        # message -- stop it so its animated spinner doesn't corrupt the
+        # traceback click is about to print on the way out.
+        _cleanup_live_stages()
 
 
 if __name__ == "__main__":
