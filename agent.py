@@ -1,5 +1,4 @@
 import os
-import re
 import warnings
 
 from dotenv import load_dotenv
@@ -50,24 +49,14 @@ async def launch_chromium() -> None:
 
 def user_input_new_job_record():
     yield RequestInput(
-        message="Ready to start the system? Type 'yes' or type 'halt' to halt the system:",
-        response_schema=str,
+        message="Ready to start the system?",
+        response_schema=bool,
     )
 
 
-def router_1(node_input: str, ctx: Context):
-    user_message = ""
-    user_input = node_input
-
-    if re.fullmatch(r"[Yy][Ee][Ss]", user_input):
-        route = "JOB"
-    elif user_input == "halt":
-        route = "END"
-    else:
-        route = "INVALID"
-        user_message = "Didn't get that, try again"
-
-    return Event(route=route, output=user_input, message=user_message)  # type: ignore[reportCallIssue]
+def router_1(node_input: bool, ctx: Context):
+    route = "JOB" if node_input else "END"
+    return Event(route=route, output=node_input)  # type: ignore[reportCallIssue]
 
 
 job_tracker_agent = Workflow(
@@ -79,7 +68,6 @@ job_tracker_agent = Workflow(
             {
                 "JOB": response_job_agent,
                 "END": response_end_node,
-                "INVALID": user_input_new_job_record,
             },
         ),
     ],

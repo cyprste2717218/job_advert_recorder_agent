@@ -36,10 +36,67 @@ import sys
 import threading
 from typing import Any
 
-import click
 import questionary
 from google.adk.cli import cli as adk_cli
 from google.genai import types
+
+# Light blue (bolded/italicised where it helps skimming) for everything,
+# except success messages which get green -- currently just
+# response_job_url_fetch_node's "Verification passed" milestone. Router/
+# orchestration nodes (`response_*`) are italicised so the agents doing
+# actual work stand out; everything else is upright.
+_original_print_event: Any = None
+
+
+def _style_for_author(author: str) -> str:
+    return "italic fg:lightblue" if author.startswith("response_") else "fg:lightblue"
+
+
+def _decorate_job_url_fetch_text(text: str) -> tuple[str, bool]:
+    """response_job_url_fetch_node narrates the extract -> verify loop; give
+    its two milestone messages the requested icon and flag the success one
+    (verification passed) so the caller can colour it green."""
+    success_prefixes = (
+        "Verification passed",
+        "Job details succesfully fetched and updated in your workbook!",
+    )
+    if text.startswith("Extracting job details from:"):
+        return f"🔍 {text}", False
+    if text.startswith(success_prefixes):
+        return f"{text} ✅", True
+    return text, False
+
+
+def _print_event_pretty(event: Any, jsonl: bool = False, session_id: Any = None) -> None:
+    """questionary-based replacement for adk_cli._print_event.
+
+    --jsonl output is for machine consumption, so it's passed straight
+    through to the original implementation untouched; only the
+    human-readable branch gets colour.
+    """
+    if jsonl:
+        _original_print_event(event, jsonl=jsonl, session_id=session_id)
+        return
+
+    author = event.author or "unknown"
+    text_parts = (
+        [p.text for p in event.content.parts if p.text]
+        if event.content and event.content.parts
+        else []
+    )
+    if text_parts:
+        text = "".join(text_parts)
+        is_success = False
+        if author == "response_job_url_fetch_node":
+            text, is_success = _decorate_job_url_fetch_text(text)
+        if is_success:
+            questionary.print(f"{author}: ", style="bold fg:green", end="")
+            questionary.print(text, style="fg:green")
+        else:
+            questionary.print(f"{author}: ", style="bold fg:lightblue", end="")
+            questionary.print(text, style=_style_for_author(author))
+    elif event.long_running_tool_ids:
+        questionary.print(f"{author}: (paused for input...)", style="bold fg:lightblue")
 
 
 def _ask(question: questionary.Question) -> Any:
@@ -72,10 +129,19 @@ def _ask(question: questionary.Question) -> Any:
     worker.join()
 
     if result.get("value") is None:
-        click.echo("\nCancelled (Ctrl+C) -- shutting down...")
+        questionary.print("\nCancelled (Ctrl+C) -- shutting down...", style="bold fg:lightblue")
         sys.exit(0)
 
     return result["value"]
+
+
+def _truncate_display(text: str, max_len: int = 20) -> str:
+    """Shortens a value for on-screen echo; the full value returned by .ask()
+    is untouched -- questionary has no `transformer` kwarg (prompt_toolkit's
+    PromptSession doesn't accept one), so callers erase questionary's own
+    rendered line (`erase_when_done=True`) and reprint this truncated form
+    themselves."""
+    return text if len(text) <= max_len else text[: max_len - 1] + "…"
 
 
 def _extract_choices(schema: Any, payload: Any) -> tuple[list[Any] | None, bool]:
@@ -114,13 +180,20 @@ def _prompt_for_function_call_select(
         schema = args.get("response_schema")
         payload = args.get("payload")
         choices, is_multi = _extract_choices(schema, payload)
+        is_bool = isinstance(schema, dict) and schema.get("type") == "boolean"
 
         if choices and is_multi:
             result = _ask(questionary.checkbox(message, choices=choices))
         elif choices:
             result = _ask(questionary.select(message, choices=choices))
+        elif is_bool:
+            result = _ask(questionary.confirm(message))
         else:
-            raw = _ask(questionary.text(message))
+            is_job_url = "job url" in message.lower()
+            qmark = "🔗" if is_job_url else "?"
+            raw = _ask(questionary.text(message, qmark=qmark, erase_when_done=is_job_url))
+            if is_job_url and raw:
+                questionary.print(f"{message} {_truncate_display(raw)}", style="bold fg:lightblue")
             try:
                 result = json.loads(raw)
             except json.JSONDecodeError, ValueError, TypeError:
@@ -129,7 +202,7 @@ def _prompt_for_function_call_select(
         response = result if isinstance(result, dict) else {"result": result}
 
     else:
-        click.echo(f"[HITL] Waiting for input for {fc_name}({args})")
+        questionary.print(f"[HITL] Waiting for input for {fc_name}({args})", style="fg:lightblue")
         raw = _ask(questionary.text("[user]: "))
         response = {"result": raw}
 
@@ -148,6 +221,9 @@ def _prompt_for_function_call_select(
 
 
 def main() -> None:
+    global _original_print_event
+    _original_print_event = adk_cli._print_event
+    adk_cli._print_event = _print_event_pretty
     adk_cli._prompt_for_function_call = _prompt_for_function_call_select
     from google.adk.cli.cli_tools_click import cli_run
 

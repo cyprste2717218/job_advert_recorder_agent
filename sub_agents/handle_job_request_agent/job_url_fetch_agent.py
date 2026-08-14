@@ -23,7 +23,8 @@ def router_1(node_input: str, ctx: Context):
     if user_input.startswith("https://"):
         result = "JOB"
         ctx.state["job_url"] = user_input
-        user_message = f"Extract job details from: {user_input}"
+        display_url = user_input if len(user_input) <= 20 else user_input[:19] + "…"
+        user_message = f"Extracting job details from: '{display_url}'..."
     else:
         result = "INVALID"
         user_message = "Not a valid URL, try again"
@@ -99,7 +100,7 @@ def raise_if_extraction_error(state_key: str, attempts_key: str):
                 f"attempts but got:\n{error_text}"
             )
         ctx.state[attempts_key] = 0
-        yield Event(message="Extraction accepted, proceeding to verification.")  # type: ignore[reportCallIssue]
+        yield Event(message="Extraction accepted, proceeding to verification...")  # type: ignore[reportCallIssue]
         yield Event(route="ok", output=node_input)  # type: ignore[reportCallIssue]
 
     _check.__name__ = f"raise_if_extraction_error_{state_key}"
@@ -119,7 +120,7 @@ def handle_job_url_fetch(node_input, ctx: Context):
 
     if job_url:
         ctx.state["job_url_fetch_attempts"] = 0
-        yield Event(message=f"Job URL fetched: {job_url}")  # type: ignore[reportCallIssue]
+        yield Event(message="Job details succesfully fetched and updated in your workbook!")  # type: ignore[reportCallIssue]
         yield Event(output="DONE")
     elif attempts < MAX_JOB_URL_FETCH_ATTEMPTS:
         yield Event(message="No job URL available yet, retrying fetch...")  # type: ignore[reportCallIssue]
