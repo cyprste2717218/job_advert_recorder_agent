@@ -30,9 +30,19 @@ pyright
 pre-commit install
 ```
 
+**Always activate the venv (`.venv\Scripts\Activate.ps1`, or `source .venv/Scripts/activate` in a bash shell) as the first step of any session before running lint/format/type-check commands, installing deps, or committing.** The `pyright` pre-commit hook is configured with `language: system`, meaning it shells out to whatever `pyright` is first on `PATH` — it is only there once the venv is active (`uv sync --group dev` installs it into `.venv`, not globally). Do this once per session and then keep working in that same shell/session rather than trying to fix it by editing `PATH` directly or reaching for a global install.
+
 There is currently no test suite. Sanity-checking a module typically means `python -m py_compile <file>` or importing it directly, since ADK `Workflow`/`Agent` graphs fail at import/construction time if wired incorrectly.
 
 `run_cli_select.py` monkeypatches `google.adk.cli.cli._prompt_for_function_call` so `RequestInput` events render as interactive `questionary` prompts (select/checkbox/text) instead of plain `input()`, then delegates straight into ADK's own `cli_run` — all of ADK's flags (`--replay`, `--resume`, `--jsonl`, `--save_session`, etc.) still work.
+
+ADK 2.0 emits a `UserWarning` (prefixed `[EXPERIMENTAL]`) the first time it touches any non-stable feature — e.g. `PLUGGABLE_AUTH`, `InMemoryCredentialService`, `BaseCredentialService` — and these trip unconditionally on a normal run (Composio MCP toolset usage on the setup/write paths touches auth). There's no ADK-native way to silence them (`ADK_ENABLE_*`/`ADK_DISABLE_*` only toggle the feature, not the warning), so `run_cli_select.py` filters them at the `warnings` module level via a `module=r"google\.adk\..*"` / `message=r"^\[EXPERIMENTAL\]"` filter, since the warnings come from whichever `google.adk.*` submodule first touches the feature (not one fixed module). If a future warning doesn't match that prefix, extend the filter rather than suppressing `UserWarning` wholesale.
+
+These features being `[EXPERIMENTAL]` is not just a warning-log annoyance — ADK's own docs say they "may change or be removed in future versions without notice" and "may introduce breaking changes at any time." Since `run_cli_select.py` now suppresses the warning that would otherwise flag this, if a future `uv sync`/ADK upgrade breaks credential handling, MCP auth, or anything else these features touch, check the [adk-python release notes](https://github.com/google/adk-python/releases) for changes to `PLUGGABLE_AUTH`, `InMemoryCredentialService`, or `BaseCredentialService` before assuming the bug is in this codebase.
+
+## Python version notes
+
+This project runs on **Python 3.14**. `except SomeError, OtherError, ThirdError:` (no parentheses) is valid there under [PEP 758](https://peps.python.org/pep-0758/), equivalent to `except (SomeError, OtherError, ThirdError):`. Do not flag it as Python 2/3 syntax-error-prone code review.
 
 ## Environment / secrets
 

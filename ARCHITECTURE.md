@@ -59,7 +59,9 @@ flowchart TD
 
     F --> G["**Node 10 (agent)**\nNavigate to the job page and extract\ncontent matching the sheet's column\nheaders retrieved from context into an in-memory record"]
 
-    G --> G2{"**Node 10a (routing function)**\nWas the extraction agent's\nresponse valid JSON?"}
+    G --> G3["**Node 10a (function)**\nNarrate a preview of the first 5\nextracted fields (of the total found)\nback to the user"]
+
+    G3 --> G2{"**Node 10b (routing function)**\nWas the extraction agent's\nresponse valid JSON?"}
 
     G2 -- "Malformed\n(retry, max 2x)" --> G
 
@@ -80,7 +82,7 @@ flowchart TD
     classDef decision fill:#fef7e0,stroke:#f9ab00,stroke-width:1px,color:#202124,font-size:24px
 
     class Start,Fin,Fin2 terminal
-    class S,Z,N,X,A,A2,FN1,FN2,FN3,CO,D,D2,E,F,G,I,K,L,V,W process
+    class S,Z,N,X,A,A2,FN1,FN2,FN3,CO,D,D2,E,F,G,G3,I,K,L,V,W process
     class R,Q,M,KV,G2,FN2R,FN4 decision
 
     linkStyle default stroke:#595959,stroke-width:1px
@@ -122,7 +124,8 @@ All evasion modules are enabled except `chrome_runtime`, which fakes an extensio
 | 8a  | Routing (function)      | Re-reads `config.json` to confirm the write in node 8 actually persisted the required fields; on failure routes back to node 1 to restart the whole setup flow, otherwise proceeds to node 9                                   |
 | 9   | Python function         | Asks the user for the page URL (job posting) to extract. On an invalid (non-`https://`) URL, re-prompts itself instead of routing forward                                                                                       |
 | 10  | Agent                   | Given a page URL and the sheet's column headers retrieved from context, reuses the persistent Chromium context to navigate to the page, extract the job-description content relevant to those fields, and build an in-memory record keyed by each field |
-| 10a | Routing (function)      | Checks whether node 10's response was valid JSON; on malformed output, routes back to node 10 to retry (capped at 2 retries), otherwise proceeds to node 11                                                                     |
+| 10a | Python function         | Narrates a preview of at most the first 5 extracted fields (out of however many were found) back to the user, so they see *what* was captured this attempt rather than just that extraction finished; runs on every pass through node 10, including retries |
+| 10b | Routing (function)      | Checks whether node 10's response was valid JSON; on malformed output, routes back to node 10 to retry (capped at 2 retries), otherwise proceeds to node 11                                                                     |
 | 11  | Agent                   | Independently re-navigates to the job page and fact-checks every value in node 10's record against the live page content, flagging anything missing, contradicted, or that looks fabricated/guessed                            |
 | 11a | Routing (function)      | Checks the verifier agent's `is_valid` result; on failure, feeds the specific issues back into node 10's prompt and routes back to node 10 to retry (capped at 2 retries); otherwise proceeds to node 12                        |
 | 12  | Agent                   | Writes the in-memory record to the selected sheet as a new row. If the response isn't valid JSON, retries itself, capped at 2 retries (`MAX_WRITE_ATTEMPTS`), before proceeding to node 13                                     |

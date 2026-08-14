@@ -23,7 +23,8 @@ def router_1(node_input: str, ctx: Context):
     if user_input.startswith("https://"):
         result = "JOB"
         ctx.state["job_url"] = user_input
-        user_message = f"Extract job details from: {user_input}"
+        display_url = user_input if len(user_input) <= 20 else user_input[:19] + "…"
+        user_message = f"Extracting job details from: '{display_url}'..."
     else:
         result = "INVALID"
         user_message = "Not a valid URL, try again"
@@ -99,7 +100,7 @@ def raise_if_extraction_error(state_key: str, attempts_key: str):
                 f"attempts but got:\n{error_text}"
             )
         ctx.state[attempts_key] = 0
-        yield Event(message="Extraction accepted, proceeding to verification.")  # type: ignore[reportCallIssue]
+        yield Event(message="Extraction accepted, proceeding to verification...")  # type: ignore[reportCallIssue]
         yield Event(route="ok", output=node_input)  # type: ignore[reportCallIssue]
 
     _check.__name__ = f"raise_if_extraction_error_{state_key}"
@@ -119,7 +120,7 @@ def handle_job_url_fetch(node_input, ctx: Context):
 
     if job_url:
         ctx.state["job_url_fetch_attempts"] = 0
-        yield Event(message=f"Job URL fetched: {job_url}")  # type: ignore[reportCallIssue]
+        yield Event(message="Job details succesfully fetched and updated in your workbook!")  # type: ignore[reportCallIssue]
         yield Event(output="DONE")
     elif attempts < MAX_JOB_URL_FETCH_ATTEMPTS:
         yield Event(message="No job URL available yet, retrying fetch...")  # type: ignore[reportCallIssue]
@@ -202,6 +203,28 @@ extract_job_spec_details_agent = Agent(
     ],
 )
 
+
+def summarize_extracted_fields(node_input, ctx: Context):
+    """Runs immediately after extract_job_spec_details_agent, before
+    check_job_spec_details gets a chance to gate/retry on a malformed
+    response. Narrates a neat preview of at most the first 5 fields pulled
+    from ctx.state["job_spec_details"] -- so the user sees *what* was
+    found this attempt, not just that extraction finished. Stored back
+    under job_spec_details_preview for any later node/display that wants
+    it without re-slicing the full record."""
+    details = ctx.state.get("job_spec_details") or {}
+    preview_items = list(details.items())[:5]
+    preview = dict(preview_items)
+    ctx.state["job_spec_details_preview"] = preview
+
+    if preview_items:
+        lines = "\n".join(f"{field}: {value or '(blank)'}" for field, value in preview_items)
+        header = f"Extracted so far (showing {len(preview_items)} of {len(details)} fields):"
+        yield Event(message=f"{header}\n{lines}")  # type: ignore[reportCallIssue]
+
+    yield Event(output=node_input)
+
+
 check_job_spec_details = raise_if_extraction_error(
     "job_spec_details", "job_spec_extraction_attempts"
 )
@@ -270,7 +293,7 @@ def route_job_spec_verification(node_input, ctx: Context):
     verification = ctx.state.get("job_spec_verification") or {}
     if verification.get("is_valid"):
         ctx.state["job_spec_verification_feedback"] = ""
-        yield Event(message="Verification passed, writing to spreadsheet.")  # type: ignore[reportCallIssue]
+        yield Event(message="Verification passed, writing to spreadsheet...")  # type: ignore[reportCallIssue]
         yield Event(route="ok", output=node_input)  # type: ignore[reportCallIssue]
         return
 
@@ -303,7 +326,8 @@ response_job_url_fetch_node = Workflow(
             router_1,
         ),
         (router_1, {"JOB": extract_job_spec_details_agent, "INVALID": user_input_new_job_record}),
-        (extract_job_spec_details_agent, check_job_spec_details),
+        (extract_job_spec_details_agent, summarize_extracted_fields),
+        (summarize_extracted_fields, check_job_spec_details),
         (
             check_job_spec_details,
             {"retry": extract_job_spec_details_agent, "ok": verify_job_spec_details_agent},
