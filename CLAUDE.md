@@ -30,6 +30,8 @@ pyright
 pre-commit install
 ```
 
+**Always activate the venv (`.venv\Scripts\Activate.ps1`, or `source .venv/Scripts/activate` in a bash shell) as the first step of any session before running lint/format/type-check commands, installing deps, or committing.** The `pyright` pre-commit hook is configured with `language: system`, meaning it shells out to whatever `pyright` is first on `PATH` — it is only there once the venv is active (`uv sync --group dev` installs it into `.venv`, not globally). Do this once per session and then keep working in that same shell/session rather than trying to fix it by editing `PATH` directly or reaching for a global install.
+
 There is currently no test suite. Sanity-checking a module typically means `python -m py_compile <file>` or importing it directly, since ADK `Workflow`/`Agent` graphs fail at import/construction time if wired incorrectly.
 
 `run_cli_select.py` monkeypatches `google.adk.cli.cli._prompt_for_function_call` so `RequestInput` events render as interactive `questionary` prompts (select/checkbox/text) instead of plain `input()`, then delegates straight into ADK's own `cli_run` — all of ADK's flags (`--replay`, `--resume`, `--jsonl`, `--save_session`, etc.) still work.
