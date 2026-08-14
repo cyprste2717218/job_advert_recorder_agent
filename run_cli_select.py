@@ -200,6 +200,11 @@ def _handle_stage_b_message(author: str, text: str) -> bool:
         if text.startswith("Malformed response for 'job_spec_"):
             _stage_b.set_substep(text)
             return True
+        if text.startswith("Extracted so far ("):
+            header, _, rest = text.partition("\n")
+            lines = rest.split("\n") if rest else []
+            _stage_b.set_substep_detail(header, lines)
+            return True
         return False
 
     if author == "response_update_spreadsheet_node":

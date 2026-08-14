@@ -7,9 +7,11 @@ write pipeline (``response_job_url_fetch_node`` /
 ``response_update_spreadsheet_node``, github issue #21). Both get the same
 two-line ``rich.live.Live`` treatment: a permanent header line (optionally
 next to a step progress bar) and an ephemeral sub-step line beneath it that
-is swapped out as each new message arrives and is removed for good once the
-stage concludes, leaving only the header -- by then holding the outcome --
-in the scrollback.
+is swapped out as each new message arrives. A stage can also attach a
+vertical detail list (`set_substep_detail`) that, unlike the sub-step line,
+sticks around across later sub-step updates until the stage concludes --
+at which point everything collapses for good, leaving only the header --
+by then holding the outcome -- in the scrollback.
 
 Kept as its own module (rather than folded into run_cli_select.py) so the
 rich-specific rendering logic is easy to find and reuse from both stages.
@@ -42,6 +44,7 @@ class StageDisplay:
         self._steps = steps
         self._step_index = 0
         self._spinner = Spinner("dots", style="cyan")
+        self._detail_lines: list[str] = []
         self._done = False
         self._outcome: Text | None = None
         self._live = Live(console=console, refresh_per_second=10, transient=False)
@@ -58,7 +61,16 @@ class StageDisplay:
             grid.add_row(bar, Text(self._steps[self._step_index], style="bold cyan"))
         else:
             grid.add_row(Text("⏳", style="cyan"), Text(self._steps[0], style="bold cyan"))
-        return Group(grid, self._spinner)
+
+        renderables: list[RenderableType] = [grid, self._spinner]
+        if self._detail_lines:
+            detail = Text(
+                "    (preview only -- remaining fields captured but not shown, for brevity)\n",
+                style="dim italic",
+            )
+            detail.append("\n".join(f"    • {line}" for line in self._detail_lines), style="dim")
+            renderables.append(detail)
+        return Group(*renderables)
 
     def start(self) -> None:
         self._live.start()
@@ -70,6 +82,19 @@ class StageDisplay:
 
     def set_substep(self, text: str) -> None:
         self._spinner.update(text=text)
+        self._live.update(self._render())
+
+    def set_substep_detail(self, header: str, lines: list[str]) -> None:
+        """Like `set_substep`, but with an extra vertical list of detail
+        lines (e.g. a preview of extracted field values) rendered beneath
+        the header. Unlike the ephemeral sub-step text -- which each
+        `set_substep`/`set_substep_detail` call overwrites -- this detail
+        list persists through any later `set_substep` calls, staying
+        visible for the rest of the stage until `finish`/`abort` drops it.
+        Call again (with new lines, or `lines=[]` to clear) to replace it
+        earlier."""
+        self._spinner.update(text=header)
+        self._detail_lines = lines
         self._live.update(self._render())
 
     def finish(self, title: str, *, icon: str, style: str) -> None:

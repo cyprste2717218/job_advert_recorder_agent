@@ -203,6 +203,28 @@ extract_job_spec_details_agent = Agent(
     ],
 )
 
+
+def summarize_extracted_fields(node_input, ctx: Context):
+    """Runs immediately after extract_job_spec_details_agent, before
+    check_job_spec_details gets a chance to gate/retry on a malformed
+    response. Narrates a neat preview of at most the first 5 fields pulled
+    from ctx.state["job_spec_details"] -- so the user sees *what* was
+    found this attempt, not just that extraction finished. Stored back
+    under job_spec_details_preview for any later node/display that wants
+    it without re-slicing the full record."""
+    details = ctx.state.get("job_spec_details") or {}
+    preview_items = list(details.items())[:5]
+    preview = dict(preview_items)
+    ctx.state["job_spec_details_preview"] = preview
+
+    if preview_items:
+        lines = "\n".join(f"{field}: {value or '(blank)'}" for field, value in preview_items)
+        header = f"Extracted so far (showing {len(preview_items)} of {len(details)} fields):"
+        yield Event(message=f"{header}\n{lines}")  # type: ignore[reportCallIssue]
+
+    yield Event(output=node_input)
+
+
 check_job_spec_details = raise_if_extraction_error(
     "job_spec_details", "job_spec_extraction_attempts"
 )
@@ -304,7 +326,8 @@ response_job_url_fetch_node = Workflow(
             router_1,
         ),
         (router_1, {"JOB": extract_job_spec_details_agent, "INVALID": user_input_new_job_record}),
-        (extract_job_spec_details_agent, check_job_spec_details),
+        (extract_job_spec_details_agent, summarize_extracted_fields),
+        (summarize_extracted_fields, check_job_spec_details),
         (
             check_job_spec_details,
             {"retry": extract_job_spec_details_agent, "ok": verify_job_spec_details_agent},
