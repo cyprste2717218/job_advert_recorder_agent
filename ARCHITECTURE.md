@@ -49,7 +49,19 @@ flowchart TD
 
     D2 --> E["**Node 7 (agent)**\nRetrieve the column headers\nof the selected sheet"]
 
-    E --> K["**Node 8 (function)**\nWrite a new `config.json` file on the user's system\nstating the selected drive, folder, workbook,\nsheet and sheet headers"]
+    E --> E2["**Node 7a (function)**\nAsk user which sheet headers,\nif any, they want to give\nclarifying context on"]
+
+    E2 --> E3{"**Node 7b (routing function)**\nDid the user select\nany headers to clarify?"}
+
+    E3 -- "None selected" --> K
+
+    E3 -- "Selected" --> E4["**Node 7c (function)**\nAsk what the next queued\nheader means to the user"]
+
+    E4 --> E5{"**Node 7d (routing function)**\nRecord the clarification;\nmore queued headers?"}
+
+    E5 -- "Yes" --> E4
+
+    E5 -- "No" --> K["**Node 8 (function)**\nWrite a new `config.json` file on the user's system\nstating the selected drive, folder, workbook,\nsheet, sheet headers and header clarifications"]
 
     K --> KV{"**Node 8a (routing function)**\nRe-read `config.json` back to confirm\nthe write succeeded"}
 
@@ -82,8 +94,8 @@ flowchart TD
     classDef decision fill:#fef7e0,stroke:#f9ab00,stroke-width:1px,color:#202124,font-size:24px
 
     class Start,Fin,Fin2 terminal
-    class S,Z,N,X,A,A2,FN1,FN2,FN3,CO,D,D2,E,F,G,G3,I,K,L,V,W process
-    class R,Q,M,KV,G2,FN2R,FN4 decision
+    class S,Z,N,X,A,A2,FN1,FN2,FN3,CO,D,D2,E,E2,E4,F,G,G3,I,K,L,V,W process
+    class R,Q,M,KV,G2,FN2R,FN4,E3,E5 decision
 
     linkStyle default stroke:#595959,stroke-width:1px
 ```
@@ -108,7 +120,7 @@ All evasion modules are enabled except `chrome_runtime`, which fakes an extensio
 | 0c  | Routing (function)      | Checks the user's response from node 0b via StringRoute; routes to the existing folder/workbook/sheet/sheet headers config-check routing if adding an entry, or to node 0d if closing out. On unrecognized input, re-prompts by looping back to node 0b instead of routing forward |
 | 0d  | Python function         | Closes the persistent Playwright Chromium context and halts the agent ADK system                                                                                                                                                 |
 | 0e  | Routing (function)      | Checks whether drive/folder/workbook/sheet/sheet header details are already defined in the `config.json` file; routes to node 0f if defined, or to node 0g to begin the setup flow if not                                                  |
-| 0f  | Python function         | Loads the drive/folder/workbook/sheet/sheet header details from `config.json` into Context (`ctx.state`) so downstream nodes can read them the same way they would after the setup flow. On a read/parse failure it retries itself, capped at 2 attempts (`MAX_CONFIG_LOAD_ATTEMPTS`), then gives up and proceeds to node 9 anyway rather than looping forever |
+| 0f  | Python function         | Loads the drive/folder/workbook/sheet/sheet header/header clarification details from `config.json` into Context (`ctx.state`) so downstream nodes can read them the same way they would after the setup flow. On a read/parse failure it retries itself, capped at 2 attempts (`MAX_CONFIG_LOAD_ATTEMPTS`), then gives up and proceeds to node 9 anyway rather than looping forever |
 | 0g  | Python function         | Verifies the user's OneDrive/Excel Composio connections are active before the setup flow calls any Composio tool; if a toolkit isn't connected, surfaces a reauth link and blocks until the user completes it                  |
 | 1   | Agent                   | Uses the Composio MCP server to list the OneDrive drives available to the user                                                                                                                                                   |
 | 2   | Python function         | Asks the user which OneDrive drive to use                                                                                                                                                                                        |
@@ -120,10 +132,14 @@ All evasion modules are enabled except `chrome_runtime`, which fakes an extensio
 | 5   | Agent                   | Retrieves the sheets within the selected workbook and returns the sheet names to the user                                                                                                                                        |
 | 6   | Python function         | Asks the user which sheet to use                                                                                                                                                                                                 |
 | 7   | Agent                   | Retrieves the column headers of the selected sheet via the Composio MCP server                                                                                                                                                   |
-| 8   | Python function         | Writes a new `config.json` file on the user's system summarising the selected drive, folder path, spreadsheet name, sheet name and column headers                                                                                       |
+| 7a  | Python function         | Presents the retrieved sheet headers as a multi-select and asks the user which, if any, they want to give clarifying context on (e.g. what counts as a "con" for them) before extraction starts guessing                        |
+| 7b  | Routing (function)      | Stashes the selected headers as a queue (`headers_to_clarify_queue`) and clears `header_clarifications`; routes to node 7c if any headers were selected, otherwise straight to node 8                                           |
+| 7c  | Python function         | Asks what the next queued header means to the user, one at a time (a node completes on its first `RequestInput`, so this can't be done as multiple prompts within a single node)                                                |
+| 7d  | Routing (function)      | Records the user's answer under `header_clarifications[header]` and pops the queue; loops back to node 7c while headers remain queued, otherwise proceeds to node 8                                                             |
+| 8   | Python function         | Writes a new `config.json` file on the user's system summarising the selected drive, folder path, spreadsheet name, sheet name, column headers and any header clarifications                                                    |
 | 8a  | Routing (function)      | Re-reads `config.json` to confirm the write in node 8 actually persisted the required fields; on failure routes back to node 1 to restart the whole setup flow, otherwise proceeds to node 9                                   |
 | 9   | Python function         | Asks the user for the page URL (job posting) to extract. On an invalid (non-`https://`) URL, re-prompts itself instead of routing forward                                                                                       |
-| 10  | Agent                   | Given a page URL and the sheet's column headers retrieved from context, reuses the persistent Chromium context to navigate to the page, extract the job-description content relevant to those fields, and build an in-memory record keyed by each field |
+| 10  | Agent                   | Given a page URL and the sheet's column headers retrieved from context, reuses the persistent Chromium context to navigate to the page, extract the job-description content relevant to those fields (applying any `header_clarifications` from nodes 7a-7d in place of guessing an ambiguous header's meaning), and build an in-memory record keyed by each field |
 | 10a | Python function         | Narrates a preview of at most the first 5 extracted fields (out of however many were found) back to the user, so they see *what* was captured this attempt rather than just that extraction finished; runs on every pass through node 10, including retries |
 | 10b | Routing (function)      | Checks whether node 10's response was valid JSON; on malformed output, routes back to node 10 to retry (capped at 2 retries), otherwise proceeds to node 11                                                                     |
 | 11  | Agent                   | Independently re-navigates to the job page and fact-checks every value in node 10's record against the live page content, flagging anything missing, contradicted, or that looks fabricated/guessed                            |

@@ -154,19 +154,24 @@ extract_job_spec_details_agent = Agent(
     and efficient manner.
 
     # How You Work
-    1. **Clarify** - Unless self-evident, i.e. salary, location, clarify what each of the
-       following fields mean:
-    {sheet_headers}
-    2. **Open URL** - Call `navigate_page` with {job_url} and wait for it to report success
+    1. **Open URL** - Call `navigate_page` with {job_url} and wait for it to report success
        before reading anything
-    3. **Read** - Call `read_page_text` to get the page's currently visible text
-    4. **Expand if needed** - Many postings render key details (full description, requirements)
+    2. **Read** - Call `read_page_text` to get the page's currently visible text
+    3. **Expand if needed** - Many postings render key details (full description, requirements)
        behind a "Show more"/"Read more" toggle or tab that only appears after the page finishes
        its client-side rendering. If a field you need isn't in the text yet, use
        `click_page_element` to expand/switch to it, then call `read_page_text` again to see
        the updated content
-    5. **Extract** - Search through the text you've read to extract the details for each field
-    6. **Store** - Store each corresponding field and detail in ADK Context
+    4. **Extract** - Search through the text you've read to extract the details for each field
+       in {sheet_headers}. Where the user has clarified what a field means to them (see
+       Field Clarifications below), extract according to their clarification rather than
+       your own assumption about the header's meaning
+    5. **Store** - Store each corresponding field and detail in ADK Context
+
+    # Field Clarifications
+    The user has given background on what these fields specifically mean to them for this
+    workbook -- apply this context when deciding what counts for each field below:
+    {header_clarifications?}
 
     {job_spec_verification_feedback?}
 

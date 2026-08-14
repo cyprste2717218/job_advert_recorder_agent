@@ -76,6 +76,7 @@ def load_config_into_context(ctx: Context):
             "folder_path": "selected_folder_path",
             "working_dir": "working_dir",
             "sheet_headers": "sheet_headers",
+            "header_clarifications": "header_clarifications",
         }
 
         for field, state_key in FIELD_TO_STATE_KEY.items():
