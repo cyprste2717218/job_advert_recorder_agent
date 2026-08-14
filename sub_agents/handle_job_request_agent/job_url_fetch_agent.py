@@ -271,7 +271,7 @@ def route_job_spec_verification(node_input, ctx: Context):
     verification = ctx.state.get("job_spec_verification") or {}
     if verification.get("is_valid"):
         ctx.state["job_spec_verification_feedback"] = ""
-        yield Event(message="Verification passed, writing to spreadsheet.")  # type: ignore[reportCallIssue]
+        yield Event(message="Verification passed, writing to spreadsheet...")  # type: ignore[reportCallIssue]
         yield Event(route="ok", output=node_input)  # type: ignore[reportCallIssue]
         return
 

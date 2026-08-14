@@ -34,11 +34,32 @@ from __future__ import annotations
 import json
 import sys
 import threading
+import warnings
 from typing import Any
 
 import questionary
 from google.adk.cli import cli as adk_cli
 from google.genai import types
+
+# ADK warns (UserWarning) the first time each non-stable feature is touched,
+# even for experimental features it ships default_on -- e.g. MCP toolset /
+# authenticated-tool usage on the setup and write paths below trips this
+# unconditionally. There's no ADK-native way to silence it (ADK_ENABLE_*/
+# ADK_DISABLE_* only toggle the feature, not the warning), so filter it at
+# the Python warnings-module level instead. These warnings fire from
+# whichever module first touches the feature -- e.g.
+# google.adk.features._feature_decorator (PLUGGABLE_AUTH), google.adk.cli.cli
+# (InMemoryCredentialService construction), and
+# google.adk.auth.credential_service.in_memory_credential_service
+# (BaseCredentialService) all trip this on a normal `run_cli_select.py` run
+# -- so match on the shared "[EXPERIMENTAL]" message prefix across all of
+# google.adk rather than pinning to one emitting module.
+warnings.filterwarnings(
+    "ignore",
+    message=r"^\[EXPERIMENTAL\]",
+    category=UserWarning,
+    module=r"google\.adk\..*",
+)
 
 # Light blue (bolded/italicised where it helps skimming) for everything,
 # except success messages which get green -- currently just
@@ -46,6 +67,23 @@ from google.genai import types
 # orchestration nodes (`response_*`) are italicised so the agents doing
 # actual work stand out; everything else is upright.
 _original_print_event: Any = None
+
+# LLM `Agent` nodes -- as opposed to the plain function/generator Workflow
+# nodes that narrate progress via `yield Event(message="...")`. ADK gives no
+# way to tell the two apart on the Event itself (`message=` is just a
+# construction-time convenience copied into `content`, not a retained flag),
+# so this list is the only way to keep raw agent output -- which is just
+# JSON matching each agent's output_schema, not human-readable prose -- out
+# of the human-readable CLI.
+_AGENT_NODE_AUTHORS = {
+    "extract_job_spec_details_agent",
+    "verify_job_spec_details_agent",
+    "write_job_record_agent",
+    "retrieve_onedrive_drives",
+    "retrieve_folder_children",
+    "retrieve_sheets",
+    "retrieve_sheet_headers",
+}
 
 
 def _style_for_author(author: str) -> str:
@@ -79,6 +117,8 @@ def _print_event_pretty(event: Any, jsonl: bool = False, session_id: Any = None)
         return
 
     author = event.author or "unknown"
+    if author in _AGENT_NODE_AUTHORS:
+        return
     text_parts = (
         [p.text for p in event.content.parts if p.text]
         if event.content and event.content.parts
