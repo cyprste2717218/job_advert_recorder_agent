@@ -488,6 +488,10 @@ retrieve_onedrive_drives = Agent(
     Do not attempt to answer using general knowledge or seek other tools.
     Always prioritize tool execution as your very first step.
     After the tool returns, respond with the list of drives as id/name pairs.
+
+    To submit your final answer, call the 'set_model_response' tool exactly
+    as spelled here (lowercase, with underscores) -- do not guess its name
+    or casing from the other tool names above.
     """,
 )
 
@@ -517,6 +521,10 @@ retrieve_folder_children = Agent(
     is_folder set to true. For workbook files, respond with id/name,
     is_folder set to false, and path set to the file's full path within
     the drive (e.g. "/Documents/Jobs/Tracker.xlsx").
+
+    To submit your final answer, call the 'set_model_response' tool exactly
+    as spelled here (lowercase, with underscores) -- do not guess its name
+    or casing from the other tool names above.
     """,
 )
 
@@ -540,6 +548,10 @@ retrieve_sheets = Agent(
     drive_id={selected_drive_id}.
 
     After the tool returns, respond with the list of sheets as id/name pairs.
+
+    To submit your final answer, call the 'set_model_response' tool exactly
+    as spelled here (lowercase, with underscores) -- do not guess its name
+    or casing from the other tool names above.
     """,
 )
 
@@ -566,6 +578,10 @@ retrieve_sheet_headers = Agent(
 
     After the tool returns, respond with only the first row of values (the
     column headers) as a list of strings.
+
+    To submit your final answer, call the 'set_model_response' tool exactly
+    as spelled here (lowercase, with underscores) -- do not guess its name
+    or casing from the other tool names above.
     """,
 )
 
