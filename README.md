@@ -12,7 +12,7 @@
 [![pre-commit](https://img.shields.io/badge/pre--commit-enabled-76B900?logo=pre-commit&logoColor=white)](https://pre-commit.com/)
 [![Questionary](https://img.shields.io/badge/Questionary-interactive%20CLI-FFC107)](https://github.com/tmbo/questionary)
 
-<!-- Add demo gif here -->
+![Demo of run_cli_select.py: launching the agent, selecting a workbook/sheet, entering a job URL, extraction and verification, and confirming the new spreadsheet row](image/usage.gif)
 
 **Never worry about manually copy pasting job advert details into spreadsheets again!**
 
