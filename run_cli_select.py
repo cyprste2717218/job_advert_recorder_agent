@@ -82,6 +82,7 @@ _original_print_event: Any = None
 # of the human-readable CLI.
 _AGENT_NODE_AUTHORS = {
     "extract_job_spec_details_agent",
+    "detect_access_denied_agent",
     "verify_job_spec_details_agent",
     "write_job_record_agent",
     "retrieve_onedrive_drives",
@@ -111,6 +112,12 @@ _stage_a: StageDisplay | None = None
 _stage_b: StageDisplay | None = None
 
 _STAGE_B_STEPS = ["Extracting job details", "Verifying details", "Updating spreadsheet"]
+
+# Mirrors job_url_fetch_agent.ACCESS_BLOCKED_PREFIX -- kept as a hardcoded
+# duplicate string rather than an import, matching how every other stage-b
+# substep message is matched here by exact/prefix text rather than a shared
+# constant (see _handle_stage_b_message).
+_ACCESS_BLOCKED_PREFIX = "ACCESS_BLOCKED::"
 
 
 def _handle_stage_a_message(author: str, text: str) -> bool:
@@ -204,6 +211,19 @@ def _handle_stage_b_message(author: str, text: str) -> bool:
             header, _, rest = text.partition("\n")
             lines = rest.split("\n") if rest else []
             _stage_b.set_substep_detail(header, lines)
+            return True
+        if text in (
+            "Checking for access restrictions or auth walls...",
+            "Access check parsed, evaluating result...",
+            "No access restrictions detected, proceeding...",
+        ):
+            _stage_b.set_substep(text)
+            return True
+        if text.startswith(_ACCESS_BLOCKED_PREFIX):
+            reason = text[len(_ACCESS_BLOCKED_PREFIX) :]
+            title = f"Access denied -- {reason}"
+            _stage_b.finish(title, icon="🚫", style="bold red")
+            _stage_b = None
             return True
         return False
 

@@ -18,6 +18,23 @@ class JobSpecVerification(BaseModel):
     )
 
 
+class AccessCheck(BaseModel):
+    access_blocked: bool = Field(
+        description=(
+            "True if the extracted fields indicate the posting page was blocked/inaccessible "
+            "(e.g. a login wall, CAPTCHA, or restricted-access message) rather than genuinely "
+            "extracted job content"
+        )
+    )
+    reason: str = Field(
+        default="",
+        description=(
+            "A clear summary, no longer than 2 lines, of what looks like it happened and why -- "
+            "only populated when access_blocked is true"
+        ),
+    )
+
+
 class NamedItem(BaseModel):
     id: str = Field(description="The ID of a retrieved digital item")
     name: str = Field(description="The name of a retrieved digital item")
