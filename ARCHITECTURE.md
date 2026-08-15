@@ -87,15 +87,19 @@ flowchart TD
 
     I --> L["**Node 13 (function)**\nTell the user that the spreadsheet\nhas been updated"]
 
-    L --> Fin2([Done])
+    L --> LC["**Node 13a (function)**\nExpose the job-entry cycle's exit\n(\"LOOP\") as this run's output,\ninstead of letting the graph go terminal"]
+
+    LC --> LR{"**Node 13b (routing function)**\nForward the \"LOOP\" output back\nto Node 0b within this same\nWorkflow run"}
+
+    LR -- "LOOP" --> N
 
     classDef terminal fill:#f1f3f4,stroke:#5f6368,stroke-width:1px,color:#5f6368,font-size:24px
     classDef process fill:#e8f0fe,stroke:#bdc1c6,stroke-width:1px,color:#202124,font-size:24px
     classDef decision fill:#fef7e0,stroke:#f9ab00,stroke-width:1px,color:#202124,font-size:24px
 
-    class Start,Fin,Fin2 terminal
-    class S,Z,N,X,A,A2,FN1,FN2,FN3,CO,D,D2,E,E2,E4,F,G,G3,I,K,L,V,W process
-    class R,Q,M,KV,G2,FN2R,FN4,E3,E5 decision
+    class Start,Fin terminal
+    class S,Z,N,X,A,A2,FN1,FN2,FN3,CO,D,D2,E,E2,E4,F,G,G3,I,K,L,LC,V,W process
+    class R,Q,M,KV,G2,FN2R,FN4,E3,E5,LR decision
 
     linkStyle default stroke:#595959,stroke-width:1px
 ```
@@ -145,5 +149,7 @@ All evasion modules are enabled except `chrome_runtime`, which fakes an extensio
 | 11  | Agent                   | Independently re-navigates to the job page and fact-checks every value in node 10's record against the live page content, flagging anything missing, contradicted, or that looks fabricated/guessed                            |
 | 11a | Routing (function)      | Checks the verifier agent's `is_valid` result; on failure, feeds the specific issues back into node 10's prompt and routes back to node 10 to retry (capped at 2 retries); otherwise proceeds to node 12                        |
 | 12  | Agent                   | Writes the in-memory record to the selected sheet as a new row. If the response isn't valid JSON, retries itself, capped at 2 retries (`MAX_WRITE_ATTEMPTS`), before proceeding to node 13                                     |
-| 13  | Python function         | Tells the user that the spreadsheet has been updated. The workflow ends here for this run — there is currently no edge looping back to node 9/10 for another job entry                                                          |
+| 13  | Python function         | Tells the user that the spreadsheet has been updated, then proceeds to node 13a                                                                                                                                                  |
+| 13a | Python function         | Terminal node of the job-entry sub-workflow (`response_job_agent`): exposes a `"LOOP"` output (rather than just a narrated message) so the root workflow can key off it, instead of the sub-workflow simply going terminal        |
+| 13b | Routing (function)      | Forwards node 13a's `"LOOP"` output back to node 0b, looping the "add a job entry or close out" cycle inside this same `root_agent` Workflow run. Without this, the graph went terminal after one job entry, handing control back to ADK CLI's outer per-turn `input()` loop — which re-invokes `root_agent` fresh on the same session for the next turn and replays event history from `START`, tripping a `RuntimeError: Replay divergence detected` on node 0b's `RequestInput` sequence key on the second job URL (github issue #13) |
 
