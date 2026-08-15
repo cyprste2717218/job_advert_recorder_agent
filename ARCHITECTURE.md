@@ -19,7 +19,7 @@ flowchart TD
 
     X --> Fin([Halted])
 
-    R -- "Defined" --> W["**Node 0f (function)**\nLoad drive/folder/workbook/sheet/header\ndetails from `config.json` into Context"]
+    R -- "Defined" --> W["**Node 0f (function)**\nLoad the cached config details\nfrom `config.json` into session state"]
 
     W --> F["**Node 9 (function)**\nAsk user for the page URL (job posting)"]
 
@@ -124,7 +124,7 @@ All evasion modules are enabled except `chrome_runtime`, which fakes an extensio
 | 0c  | Routing (function)      | Checks the user's response from node 0b via StringRoute; routes to the existing folder/workbook/sheet/sheet headers config-check routing if adding an entry, or to node 0d if closing out. On unrecognized input, re-prompts by looping back to node 0b instead of routing forward |
 | 0d  | Python function         | Closes the persistent Playwright Chromium context and halts the agent ADK system                                                                                                                                                 |
 | 0e  | Routing (function)      | Checks whether drive/folder/workbook/sheet/sheet header details are already defined in the `config.json` file; routes to node 0f if defined, or to node 0g to begin the setup flow if not                                                  |
-| 0f  | Python function         | Loads the drive/folder/workbook/sheet/sheet header/header clarification details from `config.json` into Context (`ctx.state`) so downstream nodes can read them the same way they would after the setup flow. On a read/parse failure it retries itself, capped at 2 attempts (`MAX_CONFIG_LOAD_ATTEMPTS`), then gives up and proceeds to node 9 anyway rather than looping forever |
+| 0f  | Python function         | Loads the cached drive/folder/workbook/sheet selection from `config.json` into session state (`ctx.state`), along with whatever sheet column headers were retrieved for that workbook (these vary per user/workbook rather than being a fixed set) and any header clarifications recorded against them — so downstream nodes read them the same way they would after the setup flow. On a read/parse failure it retries itself, capped at 2 attempts (`MAX_CONFIG_LOAD_ATTEMPTS`), then gives up and proceeds to node 9 anyway rather than looping forever |
 | 0g  | Python function         | Verifies the user's OneDrive/Excel Composio connections are active before the setup flow calls any Composio tool; if a toolkit isn't connected, surfaces a reauth link and blocks until the user completes it                  |
 | 1   | Agent                   | Uses the Composio MCP server to list the OneDrive drives available to the user                                                                                                                                                   |
 | 2   | Python function         | Asks the user which OneDrive drive to use                                                                                                                                                                                        |
