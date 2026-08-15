@@ -19,7 +19,7 @@ flowchart TD
 
     X --> Fin([Halted])
 
-    R -- "Defined" --> W["**Node 0f (function)**\nLoad drive/folder/workbook/sheet/header\ndetails from `config.json` into Context"]
+    R -- "Defined" --> W["**Node 0f (function)**\nLoad the cached config details\nfrom `config.json` into session state"]
 
     W --> F["**Node 9 (function)**\nAsk user for the page URL (job posting)"]
 
@@ -87,15 +87,19 @@ flowchart TD
 
     I --> L["**Node 13 (function)**\nTell the user that the spreadsheet\nhas been updated"]
 
-    L --> Fin2([Done])
+    L --> LC["**Node 13a (function)**\nExpose the job-entry cycle's exit\n('LOOP') as this run's output,\ninstead of letting the graph go terminal"]
+
+    LC --> LR{"**Node 13b (routing function)**\nForward the 'LOOP' output back\nto Node 0b within this same\nWorkflow run"}
+
+    LR -- "LOOP" --> N
 
     classDef terminal fill:#f1f3f4,stroke:#5f6368,stroke-width:1px,color:#5f6368,font-size:24px
     classDef process fill:#e8f0fe,stroke:#bdc1c6,stroke-width:1px,color:#202124,font-size:24px
     classDef decision fill:#fef7e0,stroke:#f9ab00,stroke-width:1px,color:#202124,font-size:24px
 
-    class Start,Fin,Fin2 terminal
-    class S,Z,N,X,A,A2,FN1,FN2,FN3,CO,D,D2,E,E2,E4,F,G,G3,I,K,L,V,W process
-    class R,Q,M,KV,G2,FN2R,FN4,E3,E5 decision
+    class Start,Fin terminal
+    class S,Z,N,X,A,A2,FN1,FN2,FN3,CO,D,D2,E,E2,E4,F,G,G3,I,K,L,LC,V,W process
+    class R,Q,M,KV,G2,FN2R,FN4,E3,E5,LR decision
 
     linkStyle default stroke:#595959,stroke-width:1px
 ```
@@ -120,7 +124,7 @@ All evasion modules are enabled except `chrome_runtime`, which fakes an extensio
 | 0c  | Routing (function)      | Checks the user's response from node 0b via StringRoute; routes to the existing folder/workbook/sheet/sheet headers config-check routing if adding an entry, or to node 0d if closing out. On unrecognized input, re-prompts by looping back to node 0b instead of routing forward |
 | 0d  | Python function         | Closes the persistent Playwright Chromium context and halts the agent ADK system                                                                                                                                                 |
 | 0e  | Routing (function)      | Checks whether drive/folder/workbook/sheet/sheet header details are already defined in the `config.json` file; routes to node 0f if defined, or to node 0g to begin the setup flow if not                                                  |
-| 0f  | Python function         | Loads the drive/folder/workbook/sheet/sheet header/header clarification details from `config.json` into Context (`ctx.state`) so downstream nodes can read them the same way they would after the setup flow. On a read/parse failure it retries itself, capped at 2 attempts (`MAX_CONFIG_LOAD_ATTEMPTS`), then gives up and proceeds to node 9 anyway rather than looping forever |
+| 0f  | Python function         | Loads the cached drive/folder/workbook/sheet selection from `config.json` into session state (`ctx.state`), along with whatever sheet column headers were retrieved for that workbook (these vary per user/workbook rather than being a fixed set) and any header clarifications recorded against them — so downstream nodes read them the same way they would after the setup flow. On a read/parse failure it retries itself, capped at 2 attempts (`MAX_CONFIG_LOAD_ATTEMPTS`), then gives up and proceeds to node 9 anyway rather than looping forever |
 | 0g  | Python function         | Verifies the user's OneDrive/Excel Composio connections are active before the setup flow calls any Composio tool; if a toolkit isn't connected, surfaces a reauth link and blocks until the user completes it                  |
 | 1   | Agent                   | Uses the Composio MCP server to list the OneDrive drives available to the user                                                                                                                                                   |
 | 2   | Python function         | Asks the user which OneDrive drive to use                                                                                                                                                                                        |
@@ -145,5 +149,7 @@ All evasion modules are enabled except `chrome_runtime`, which fakes an extensio
 | 11  | Agent                   | Independently re-navigates to the job page and fact-checks every value in node 10's record against the live page content, flagging anything missing, contradicted, or that looks fabricated/guessed                            |
 | 11a | Routing (function)      | Checks the verifier agent's `is_valid` result; on failure, feeds the specific issues back into node 10's prompt and routes back to node 10 to retry (capped at 2 retries); otherwise proceeds to node 12                        |
 | 12  | Agent                   | Writes the in-memory record to the selected sheet as a new row. If the response isn't valid JSON, retries itself, capped at 2 retries (`MAX_WRITE_ATTEMPTS`), before proceeding to node 13                                     |
-| 13  | Python function         | Tells the user that the spreadsheet has been updated. The workflow ends here for this run — there is currently no edge looping back to node 9/10 for another job entry                                                          |
+| 13  | Python function         | Tells the user that the spreadsheet has been updated, then proceeds to node 13a                                                                                                                                                  |
+| 13a | Python function         | Terminal node of the job-entry sub-workflow (`response_job_agent`): exposes a `"LOOP"` output (rather than just a narrated message) so the root workflow can key off it, instead of the sub-workflow simply going terminal        |
+| 13b | Routing (function)      | Forwards node 13a's `"LOOP"` output back to node 0b, looping the "add a job entry or close out" cycle inside this same `root_agent` Workflow run. Without this, the graph went terminal after one job entry, handing control back to ADK CLI's outer per-turn `input()` loop — which re-invokes `root_agent` fresh on the same session for the next turn and replays event history from `START`, tripping a `RuntimeError: Replay divergence detected` on node 0b's `RequestInput` sequence key on the second job URL (github issue #13) |
 

@@ -118,6 +118,24 @@ def job_url_fetch_result_router(node_input: str):
         return Event(route="RETRY")  # type: ignore[reportCallIssue]
 
 
+def job_cycle_done(node_input) -> Event:
+    """Terminal node of response_job_agent: exposes an "output" (not just a
+    "message") for root_agent to key off of, unlike job_url_fetch_done above.
+
+    Needed so root_agent can loop back to its own "Ready to start the
+    system?" prompt *inside* this same Workflow run rather than letting the
+    graph go terminal. If it goes terminal, control returns to ADK CLI's
+    outer `while True: input('[user]: ')` loop (see run_cli.run_interactively),
+    which re-invokes the whole root_agent graph from START as a brand-new
+    top-level turn on the *same* session -- and that replay re-triggers
+    user_input_new_job_record's RequestInput under a sequence key already
+    consumed by the first turn, raising `RuntimeError: Replay divergence
+    detected: Timed out waiting for sequence key 'user_input_new_job_record@1'
+    to be unblocked.` (github issue #13). Looping internally instead avoids
+    ever going terminal until the user actually chooses to stop."""
+    return Event(output="LOOP")  # type: ignore[reportCallIssue]
+
+
 response_job_agent = Workflow(
     # update this
     name="response_job_agent",
@@ -160,5 +178,6 @@ response_job_agent = Workflow(
                 "DONE": job_url_fetch_done,
             },
         ),
+        (job_url_fetch_done, job_cycle_done),
     ],
 )
