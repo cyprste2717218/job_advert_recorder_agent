@@ -87,9 +87,9 @@ flowchart TD
 
     I --> L["**Node 13 (function)**\nTell the user that the spreadsheet\nhas been updated"]
 
-    L --> LC["**Node 13a (function)**\nExpose the job-entry cycle's exit\n(\"LOOP\") as this run's output,\ninstead of letting the graph go terminal"]
+    L --> LC["**Node 13a (function)**\nExpose the job-entry cycle's exit\n('LOOP') as this run's output,\ninstead of letting the graph go terminal"]
 
-    LC --> LR{"**Node 13b (routing function)**\nForward the \"LOOP\" output back\nto Node 0b within this same\nWorkflow run"}
+    LC --> LR{"**Node 13b (routing function)**\nForward the 'LOOP' output back\nto Node 0b within this same\nWorkflow run"}
 
     LR -- "LOOP" --> N
 
