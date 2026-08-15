@@ -59,6 +59,16 @@ def router_1(node_input: bool, ctx: Context):
     return Event(route=route, output=node_input)  # type: ignore[reportCallIssue]
 
 
+def router_2(node_input: str):
+    """Routes response_job_agent's exit ("LOOP", see job_cycle_done in
+    sub_agents/handle_job_request_agent/agent.py) back to
+    user_input_new_job_record within this same Workflow run, instead of
+    letting root_agent go terminal after one job entry -- see job_cycle_done
+    for why going terminal there crashes on a second job URL (github
+    issue #13)."""
+    return Event(route=node_input)  # type: ignore[reportCallIssue]
+
+
 job_tracker_agent = Workflow(
     name="root_agent",
     edges=[
@@ -68,6 +78,13 @@ job_tracker_agent = Workflow(
             {
                 "JOB": response_job_agent,
                 "END": response_end_node,
+            },
+        ),
+        (response_job_agent, router_2),
+        (
+            router_2,
+            {
+                "LOOP": user_input_new_job_record,
             },
         ),
     ],
