@@ -27,7 +27,7 @@ def handle_job_url_fetch(node_input, ctx: Context):
     """Placeholder node. TODO: implement job url fetch.
 
     Retries up to MAX_JOB_URL_FETCH_ATTEMPTS times when no job_url is present
-    in context before giving up, so the back-edge in response_job_agent
+    in context before giving up, so the back-edge in response_job_workflow
     terminates instead of looping forever."""
     attempts = ctx.state.get("job_url_fetch_attempts", 0) + 1
     ctx.state["job_url_fetch_attempts"] = attempts

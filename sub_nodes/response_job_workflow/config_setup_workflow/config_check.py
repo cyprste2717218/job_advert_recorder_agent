@@ -13,7 +13,7 @@ REQUIRED_FIELDS = {"spreadsheet_id", "worksheet_name", "working_dir"}
 def config_check_present_check():
     """Return an Event output on whether config.json exists with the required fields.
 
-    Shared by response_job_agent (agent.py) and this module's own
+    Shared by response_job_workflow (workflow.py) and this module's own
     post-write verification step; import from here rather than redefining."""
 
     if not CONFIG_PATH.is_file():
@@ -29,7 +29,7 @@ def config_check_present_check():
 
 def checking_config_check_result(node_input: bool):
     """Update the user on the result of the config check and forward the
-    response to the parent Workflow (response_job_agent)"""
+    response to the parent Workflow (response_job_workflow)"""
 
     route = "False" if not node_input else "True"
 
@@ -62,7 +62,7 @@ def write_config_file(ctx: Context):
     }
     CONFIG_PATH.write_text(json.dumps(config, indent=2))
 
-    # Downstream nodes (e.g. response_job_url_fetch_node) read "working_dir"
+    # Downstream nodes (e.g. job_url_fetch_node) read "working_dir"
     # regardless of whether config came from this setup flow or was loaded
     # from an existing config.json (see load_config_into_context), so stash
     # it under the same key here too.

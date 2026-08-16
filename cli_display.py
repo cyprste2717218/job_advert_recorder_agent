@@ -2,8 +2,8 @@
 
 Two multi-step flows narrate their progress purely through a sequence of
 ``Event(message=...)`` calls: the config-presence check
-(``response_job_agent``, github issue #20) and the extract -> verify ->
-write pipeline (``response_job_url_fetch_node`` /
+(``response_job_workflow``, github issue #20) and the extract -> verify ->
+write pipeline (``job_url_fetch_node`` /
 ``response_update_spreadsheet_node``, github issue #21). Both get the same
 two-line ``rich.live.Live`` treatment: a permanent header line (optionally
 next to a step progress bar) and an ephemeral sub-step line beneath it that

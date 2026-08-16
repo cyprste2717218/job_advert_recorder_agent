@@ -1,18 +1,18 @@
-"""Wires the interactive setup flow's nodes (see config_setup/) into the
-response_handle_config_impl_node Workflow. Split into config_setup/ so each
-concern (Composio session setup, output guarding/retry, drive/folder/sheet
-navigation, header clarification, retrieval agents) lives in its own
-<=200-line module -- see CLAUDE.md's Code style section."""
+"""Wires the interactive setup flow's nodes into the
+response_handle_config_impl_node Workflow. Split so each concern (Composio
+session setup, output guarding/retry, drive/folder/sheet navigation, header
+clarification, retrieval agents) lives in its own <=200-line module -- see
+CLAUDE.md's Code style section."""
 
 from google.adk import Workflow
 
-from .config_setup.composio_client import ensure_composio_connections
-from .config_setup.config_check import (
+from .composio_client import ensure_composio_connections
+from .config_check import (
     checking_config_check_result,
     config_check_present_check,
     write_config_file,
 )
-from .config_setup.folder_navigation import (
+from .folder_navigation import (
     resolve_drive_selection,
     resolve_folder_navigation,
     resolve_sheet_selection,
@@ -20,13 +20,13 @@ from .config_setup.folder_navigation import (
     user_input_folder_navigation,
     user_input_sheet,
 )
-from .config_setup.header_clarification import (
+from .header_clarification import (
     resolve_header_clarification,
     resolve_headers_to_clarify,
     user_input_header_clarification,
     user_input_headers_to_clarify,
 )
-from .config_setup.retrieval_agents import (
+from .retrieval_agents import (
     check_folder_children,
     check_onedrive_drives,
     check_sheet_headers,

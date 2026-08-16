@@ -17,10 +17,10 @@ def guard_structured_output(state_key: str):
     raise_if_extraction_error node then surfaces the stashed text as a
     clean error/retry instead of a stack trace.
 
-    Mirrors config_setup.output_guards.guard_structured_output; kept local
-    here (rather than imported) to avoid a circular import, since
-    handle_config_impl_agent.py already imports response_job_url_fetch_node
-    from job_url_fetch_agent.py."""
+    Mirrors config_setup_workflow.output_guards.guard_structured_output; kept
+    local here (rather than imported) to avoid a circular import, since
+    config_setup_workflow/workflow.py already imports job_url_fetch_node from
+    job_url_fetch_workflow/workflow.py."""
 
     def _callback(callback_context, llm_response):
         if llm_response.content is None:
@@ -58,7 +58,7 @@ def raise_if_extraction_error(
     instead of silently continuing with a garbage object. On success,
     routes "ok" with the node input unchanged.
 
-    Simpler than config_setup.output_guards.raise_if_tool_error: no
+    Simpler than config_setup_workflow.output_guards.raise_if_tool_error: no
     Composio reauth branch, since job-posting extraction has no Composio
     tools."""
 

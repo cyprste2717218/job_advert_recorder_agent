@@ -100,20 +100,21 @@ def _style_for_author(author: str) -> str:
 # required so they don't fight over cursor/terminal state.
 _console = Console()
 
-# Config-presence check (response_job_agent, github issue #20) and the
-# extract -> verify -> write pipeline (response_job_url_fetch_node /
+# Config-presence check (response_job_workflow, github issue #20) and the
+# extract -> verify -> write pipeline (job_url_fetch_node /
 # response_update_spreadsheet_node, github issue #21) each narrate their
 # progress purely through Event(message=...) text. These two module-level
 # handles track whichever stage is currently live, matched by exact message
-# text against the known strings those nodes emit (see handle_config_impl_agent.py
-# / agent.py / job_url_fetch_agent.py / update_spreadsheet_node.py) -- there's
-# no state flag on the Event itself to key off instead.
+# text against the known strings those nodes emit (see
+# sub_nodes/response_job_workflow/{workflow.py,config_setup_workflow/workflow.py,
+# job_url_fetch_workflow/workflow.py} / sub_nodes/update_spreadsheet_node.py)
+# -- there's no state flag on the Event itself to key off instead.
 _stage_a: StageDisplay | None = None
 _stage_b: StageDisplay | None = None
 
 _STAGE_B_STEPS = ["Extracting job details", "Verifying details", "Updating spreadsheet"]
 
-# Mirrors job_url_fetch_agent.ACCESS_BLOCKED_PREFIX -- kept as a hardcoded
+# Mirrors job_url_fetch_workflow.access_check.ACCESS_BLOCKED_PREFIX -- kept as a hardcoded
 # duplicate string rather than an import, matching how every other stage-b
 # substep message is matched here by exact/prefix text rather than a shared
 # constant (see _handle_stage_b_message).
@@ -121,14 +122,14 @@ _ACCESS_BLOCKED_PREFIX = "ACCESS_BLOCKED::"
 
 
 def _handle_stage_a_message(author: str, text: str) -> bool:
-    """response_job_agent's config-presence check: a permanent header while
+    """response_job_workflow's config-presence check: a permanent header while
     "Checking configuration"/"Loaded configuration" is underway, with each
     sub-message swapped in below it, collapsing to the outcome once the
     check (and, if config was present, the subsequent load) concludes.
     Returns True if this event was absorbed into the stage display."""
     global _stage_a
 
-    if author != "response_job_agent":
+    if author != "response_job_workflow":
         return False
 
     if text == "Checking if workbook/spreadsheet details configured yet...":
@@ -177,7 +178,7 @@ def _handle_stage_b_message(author: str, text: str) -> bool:
     display."""
     global _stage_b
 
-    if author == "response_job_url_fetch_node" and text.startswith("Extracting job details from:"):
+    if author == "job_url_fetch_node" and text.startswith("Extracting job details from:"):
         _stage_b = StageDisplay(_console, steps=_STAGE_B_STEPS)
         _stage_b.start()
         _stage_b.set_substep(text)
@@ -186,7 +187,7 @@ def _handle_stage_b_message(author: str, text: str) -> bool:
     if _stage_b is None:
         return False
 
-    if author == "response_job_url_fetch_node":
+    if author == "job_url_fetch_node":
         if text == "Job details succesfully fetched and updated in your workbook!":
             _stage_b.set_substep(text)
             _stage_b.finish(text, icon="✅", style="bold green")

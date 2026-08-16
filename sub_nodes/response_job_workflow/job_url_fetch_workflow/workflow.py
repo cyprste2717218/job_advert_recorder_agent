@@ -1,38 +1,37 @@
-"""Wires the extract -> verify -> write pipeline's nodes (see job_url_fetch/)
-into the response_job_url_fetch_node Workflow. Split into job_url_fetch/ so
-each concern (fetch loop, extraction agent, access-block detection,
-verification agent, output guarding/retry) lives in its own <=200-line
-module -- see CLAUDE.md's Code style section."""
+"""Wires the extract -> verify -> write pipeline's nodes into the
+job_url_fetch_node Workflow. Split so each concern (fetch loop, extraction
+agent, access-block detection, verification agent, output guarding/retry)
+lives in its own <=200-line module -- see CLAUDE.md's Code style section."""
 
 from google.adk import Workflow
 
-from .job_url_fetch.access_check import (
+from ...update_spreadsheet_node import response_update_spreadsheet_node
+from .access_check import (
     ACCESS_BLOCKED_PREFIX,  # noqa: F401  (re-exported for compatibility)
     announce_access_check,
     check_access_check,
     detect_access_denied_agent,
     route_access_check,
 )
-from .job_url_fetch.extraction_agent import (
+from .extraction_agent import (
     check_job_spec_details,
     extract_job_spec_details_agent,
     summarize_extracted_fields,
 )
-from .job_url_fetch.fetch_loop import (
+from .fetch_loop import (
     handle_job_url_fetch,
-    job_url_fetch_done,  # noqa: F401  (re-exported for sub_agents/.../agent.py)
+    job_url_fetch_done,  # noqa: F401  (re-exported for sub_nodes/.../workflow.py)
     router_1,
     user_input_new_job_record,
 )
-from .job_url_fetch.verification_agent import (
+from .verification_agent import (
     route_job_spec_verification,
     verify_job_spec_details_agent,
 )
-from .update_spreadsheet_node import response_update_spreadsheet_node
 
-response_job_url_fetch_node = Workflow(
+job_url_fetch_node = Workflow(
     # update this
-    name="response_job_url_fetch_node",
+    name="job_url_fetch_node",
     edges=[
         (
             "START",
