@@ -71,6 +71,10 @@ Cross-cutting patterns worth knowing before touching any of the above:
 - **`ctx.state` is the shared blackboard** across the whole graph — e.g. `job_url`, `sheet_headers`, `selected_workbook_id`, `selected_drive_id`, `selected_sheet_name`, `job_spec_details` are all written by one node and read by a later one via `{field_name}` template interpolation in an `Agent`'s `instruction` string (ADK's dynamic-state-placeholder syntax; `{field?}` for optional/possibly-empty state).
 - Routing functions (`router_1`, `router_2`, etc.) are named identically across multiple modules — they're module-local and not shared, so don't assume a `router_1` in one file means anything in another.
 
+## Code style
+
+**No `.py` file may exceed 200 lines.** This is a general readability convention, not tied to any one module — when a file grows past the limit (or a change would push it over), split it by concern into a package (see `sub_agents/handle_job_request_agent/config_setup/` and `sub_agents/handle_job_request_agent/job_url_fetch/` for the pattern: e.g. output-guard/retry plumbing, `Agent` definitions, `RequestInput`/router nodes, and Composio session setup each get their own module, with the original filename reduced to just the `Workflow` edge wiring). Don't share code across sub-agent modules purely to shrink line counts if doing so would introduce a circular import — see the deliberately-duplicated `guard_structured_output` copies noted above.
+
 ## Git Conventions
 
 
