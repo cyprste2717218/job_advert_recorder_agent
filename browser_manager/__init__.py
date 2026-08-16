@@ -1,6 +1,6 @@
-from .browser_manager import click_page_element as click_page_element
-from .browser_manager import close as close
-from .browser_manager import get_context as get_context
-from .browser_manager import launch as launch
-from .browser_manager import navigate_page as navigate_page
-from .browser_manager import read_page_text as read_page_text
+from .click_page_element import click_page_element as click_page_element
+from .misc import close as close
+from .misc import get_context as get_context
+from .misc import launch as launch
+from .navigate_page import navigate_page as navigate_page
+from .read_page_text import read_page_text as read_page_text
