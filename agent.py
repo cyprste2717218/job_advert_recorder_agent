@@ -7,13 +7,13 @@ from google.adk.agents.context import Context
 from google.adk.events import RequestInput
 
 # Loaded here, before the local imports below, since those modules
-# (transitively, e.g. handle_config_impl_agent.py) read Composio/Google env
-# vars at import time and need .env already loaded by then.
+# (transitively, e.g. config_setup_workflow/workflow.py) read Composio/Google
+# env vars at import time and need .env already loaded by then.
 load_dotenv()
 
 import browser_manager  # noqa: E402
-from sub_agents.end_system_node import response_end_node  # noqa: E402
-from sub_agents.handle_job_request_agent import response_job_agent  # noqa: E402
+from sub_nodes.end_system_node import response_end_node  # noqa: E402
+from sub_nodes.response_job_workflow import response_job_workflow  # noqa: E402
 
 warnings.filterwarnings("ignore", message=".*BaseAuthenticatedTool.*")
 
@@ -60,8 +60,8 @@ def router_1(node_input: bool, ctx: Context):
 
 
 def router_2(node_input: str):
-    """Routes response_job_agent's exit ("LOOP", see job_cycle_done in
-    sub_agents/handle_job_request_agent/agent.py) back to
+    """Routes response_job_workflow's exit ("LOOP", see job_cycle_done in
+    sub_nodes/response_job_workflow/workflow.py) back to
     user_input_new_job_record within this same Workflow run, instead of
     letting root_agent go terminal after one job entry -- see job_cycle_done
     for why going terminal there crashes on a second job URL (github
@@ -76,11 +76,11 @@ job_tracker_agent = Workflow(
         (
             router_1,
             {
-                "JOB": response_job_agent,
+                "JOB": response_job_workflow,
                 "END": response_end_node,
             },
         ),
-        (response_job_agent, router_2),
+        (response_job_workflow, router_2),
         (
             router_2,
             {

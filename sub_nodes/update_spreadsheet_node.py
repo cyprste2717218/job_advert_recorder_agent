@@ -22,9 +22,10 @@ MAX_WRITE_ATTEMPTS = 3
 composio_client = Composio(api_key=COMPOSIO_API_KEY)  # type: ignore[reportArgumentType]
 
 # Own Composio session/toolset (rather than importing the one from
-# handle_config_impl_agent.py) to avoid a circular import: that module
-# already imports response_job_url_fetch_node from job_url_fetch_agent.py,
-# which in turn needs this module's node 14/15 to build its Workflow.
+# config_setup_workflow/composio_client.py) to avoid a circular import: the
+# config_setup_workflow's workflow.py already imports job_url_fetch_node from
+# job_url_fetch_workflow/workflow.py, which in turn needs this module's node
+# 14/15 to build its Workflow.
 _session = composio_client.sessions.create(
     user_id=COMPOSIO_USER_ID,  # type: ignore[reportArgumentType]
     toolkits=["excel"],
@@ -51,7 +52,7 @@ def guard_structured_output(state_key: str):
     validation succeeds; check_spreadsheet_write then surfaces the stashed
     text as a clean error/retry instead of a stack trace.
 
-    Mirrors job_url_fetch_agent.guard_structured_output; kept local here
+    Mirrors job_url_fetch_workflow.output_guards.guard_structured_output; kept local here
     (rather than imported) for the same circular-import reason noted above."""
 
     def _callback(callback_context, llm_response):

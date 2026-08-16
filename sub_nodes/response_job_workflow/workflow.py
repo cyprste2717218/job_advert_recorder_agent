@@ -4,16 +4,16 @@ from pathlib import Path
 from google.adk import Event, Workflow
 from google.adk.agents.context import Context
 
-from .handle_config_impl_agent import (
+from .config_setup_workflow.workflow import (
     config_check_present_check,
     response_handle_config_impl_node,
 )
-from .job_url_fetch_agent import (
+from .job_url_fetch_workflow.workflow import (
     job_url_fetch_done,
-    response_job_url_fetch_node,
+    job_url_fetch_node,
 )
 
-# job_tracker_agent/ is the parent of sub_agents/, which is the parent of handle_job_request_agent/
+# job_tracker_agent/ is the parent of sub_nodes/, which is the parent of response_job_workflow/
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 CONFIG_PATH = PROJECT_ROOT / "config.json"
 
@@ -52,7 +52,7 @@ MAX_CONFIG_LOAD_ATTEMPTS = 2
 def load_config_into_context(ctx: Context):
     """Node 0f: load the previously-saved drive/workbook/sheet/header config
     from config.json into Context under the same state keys the interactive
-    setup flow (handle_config_impl_agent.py) leaves behind, so downstream
+    setup flow (config_setup_workflow/workflow.py) leaves behind, so downstream
     nodes can read consistent keys regardless of which branch ran.
 
     Retries once on failure before giving up: after MAX_CONFIG_LOAD_ATTEMPTS
@@ -119,7 +119,7 @@ def job_url_fetch_result_router(node_input: str):
 
 
 def job_cycle_done(node_input) -> Event:
-    """Terminal node of response_job_agent: exposes an "output" (not just a
+    """Terminal node of response_job_workflow: exposes an "output" (not just a
     "message") for root_agent to key off of, unlike job_url_fetch_done above.
 
     Needed so root_agent can loop back to its own "Ready to start the
@@ -136,9 +136,9 @@ def job_cycle_done(node_input) -> Event:
     return Event(output="LOOP")  # type: ignore[reportCallIssue]
 
 
-response_job_agent = Workflow(
+response_job_workflow = Workflow(
     # update this
-    name="response_job_agent",
+    name="response_job_workflow",
     edges=[
         (
             "START",
@@ -159,22 +159,22 @@ response_job_agent = Workflow(
         (
             successful_context_load_router,
             {
-                "Proceed": response_job_url_fetch_node,
+                "Proceed": job_url_fetch_node,
                 "False": load_config_into_context,
             },
         ),
         (
             successful_config_check_router,
             {
-                "True": response_job_url_fetch_node,
+                "True": job_url_fetch_node,
                 "False": response_handle_config_impl_node,
             },
         ),
-        (response_job_url_fetch_node, job_url_fetch_result_router),
+        (job_url_fetch_node, job_url_fetch_result_router),
         (
             job_url_fetch_result_router,
             {
-                "RETRY": response_job_url_fetch_node,
+                "RETRY": job_url_fetch_node,
                 "DONE": job_url_fetch_done,
             },
         ),
