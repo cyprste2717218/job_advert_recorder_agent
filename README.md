@@ -1,11 +1,15 @@
 # Job Advert Recorder Agent
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/Python-3.14%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![Rich](https://img.shields.io/badge/Rich-terminal%20formatting-FAE742?logo=python&logoColor=black)](https://github.com/Textualize/rich)
 [![Pydantic](https://img.shields.io/badge/Pydantic-v2-E92063?logo=pydantic&logoColor=white)](https://docs.pydantic.dev/latest/)
 [![Google ADK](https://img.shields.io/badge/Google%20ADK-2.0-4285F4?logo=google&logoColor=white)](https://adk.dev/2.0/)
 [![Playwright](https://img.shields.io/badge/Playwright-45ba4b?logo=playwright&logoColor=white)](https://playwright.dev/)
 [![playwright-stealth](https://img.shields.io/badge/playwright--stealth-bot%20detection%20evasion-45ba4b?logo=playwright&logoColor=white)](https://github.com/AtuboDad/playwright_stealth)
 [![Composio MCP](https://img.shields.io/badge/Composio-MCP%20Server-6E56CF)](https://composio.dev/toolkits/excel/framework/google-adk)
+[![MCP](https://img.shields.io/badge/MCP-Model%20Context%20Protocol-000000)](https://modelcontextprotocol.io/)
+[![python-dotenv](https://img.shields.io/badge/python--dotenv-.env%20config-ECD53F?logo=python&logoColor=black)](https://github.com/theskumar/python-dotenv)
 [![Ruff](https://img.shields.io/badge/Ruff-lint%20%26%20format-D7FF64?logo=ruff&logoColor=black)](https://docs.astral.sh/ruff/)
 [![Pyright](https://img.shields.io/badge/Pyright-type%20checked-3775A9?logo=python&logoColor=white)](https://microsoft.github.io/pyright/)
 [![uv](https://img.shields.io/badge/uv-package%20manager-DE5FE9?logo=uv&logoColor=white)](https://docs.astral.sh/uv/)
@@ -29,6 +33,7 @@ The tool is operated via the CLI, [see below for setup instructions](#local-setu
 - [Local Setup](#local-setup)
 - [Development](#development)
 - [Current Limitations](#current-limitations)
+- [License](#license)
 
 ## Project Overview
 
@@ -38,26 +43,30 @@ When the agent system starts up for the first time, [Playwright](https://playwri
 
 Immediately after, the user is prompted for the excel workbook and sheet they want to use through the aid of the [Composio MCP Server](https://composio.dev/).
 
-The user can also specify an optional folder within OneDrive to scope the search for excel workbooks within to reduce search latency.
+The user browses their OneDrive drive interactively (open a subfolder, go up a level, or pick a workbook) rather than typing a path, which keeps each folder-listing call scoped to just the current folder instead of searching the whole drive at once.
 These details are then saved to a config file (`config.json`), and the user is asked for the URL of the job posting to scrape details from.
 
-A series of agents then extracts & vets the content retrieved adheres to what is expected (i.e. the column header names of your workbook sheet).
-If everything is looking right, then the Composio MCP Server adds a new row to your workbook sheet, auto-filling out the cell entries!
+A series of agents then extracts & vets the content retrieved adheres to what is expected (i.e. the column header names of your workbook sheet), also checking whether the page itself was blocked or auth-walled rather than genuinely extracted (re-prompting for a URL if so).
+If everything is looking right, then the Composio MCP Server adds a new row to your workbook sheet, auto-filling out the cell entries. You're then asked whether to add another job entry or close out the agent - the CLI keeps running until you choose to stop.
 
 ### Pipeline Overview
 
 ```mermaid
 flowchart TD
     Start([Start]) --> Setup["Setup<br/>Launch browser context,<br/>configure folder/workbook/sheet"]
-    Setup --> Extract["Extraction<br/>Navigate to job URL, extract<br/>fields, confidence-check, retry if needed"]
+    Setup --> Extract["Extraction<br/>Navigate to job URL, check for<br/>blocked/auth-walled pages,<br/>extract fields, verify, retry if needed"]
     Extract --> Write["Write<br/>Append record to spreadsheet<br/>as a new row"]
-    Write --> End([Done])
+    Write --> Again{"Add another<br/>job entry?"}
+    Again -- "Yes" --> Extract
+    Again -- "No" --> End([Done])
 
     classDef terminal fill:#f1f3f4,stroke:#5f6368,stroke-width:1px,color:#5f6368
     classDef process fill:#e8f0fe,stroke:#bdc1c6,stroke-width:1px,color:#202124
+    classDef decision fill:#fef7e0,stroke:#f9ab00,stroke-width:1px,color:#202124
 
     class Start,End terminal
     class Setup,Extract,Write process
+    class Again decision
 
     linkStyle default stroke:#595959,stroke-width:1px
 ```
@@ -69,13 +78,15 @@ For the full node-by-node flowchart and node summary table, see [ARCHITECTURE.md
 > Requires the project to be [set up locally](#local-setup) first.
 
 1. Activate your virtual env and run `uv run python run_cli_select.py .` (see step 6 of [Local Setup](#local-setup)) to start the agent.
-2. On first run, you'll be prompted to pick a OneDrive folder, workbook, and sheet to track - these choices are cached in `config.json` so you won't be asked again on subsequent runs (unless you want to [track a different workbook/sheet](#tracking-a-different-workbook-sheet-or-columns)).
-3. Paste in the URL of the job posting you want to record.
-4. The agent extracts the job details, checks them against your sheet's column headers, and appends a new row to your spreadsheet - auto-filling the matching cells.
+2. On first run, if your OneDrive/Excel Composio connection isn't active yet you'll be given a reauth link to complete before setup can continue.
+3. You'll be prompted to browse to and pick a OneDrive workbook, a sheet to track, and any sheet headers you need to explain/clarify the meaning of, e.g. what counts under the 'pros' column - these choices are cached in `config.json` so you won't be asked again on subsequent runs (unless you want to [track a different workbook/sheet](#tracking-a-different-workbook-sheet-or-columns)).
+4. Paste in the URL of the job posting you want to record.
+5. The agent extracts the job details, checks them against your sheet's column headers (retrying if the page turns out to be blocked/auth-walled), and appends a new row to your spreadsheet - auto-filling the matching cells.
+6. You're then asked whether to add another job entry or close out the agent - repeat from step 4 for as many postings as you like in one run.
 
 ### Tracking a Different Workbook, Sheet or Columns
 
-Once the initial setup flow has run once, the selected OneDrive folder, workbook, sheet, and sheet column headers are cached in a `config.json` file so they don't need to be re-selected on every run.
+Once the initial setup flow has run once, the selected OneDrive folder, workbook, sheet, column headers and header explanations are cached in a `config.json` file so they don't need to be re-selected on every run.
 
 There is currently no CLI-based way to change these once set (see [Current Limitations](#current-limitations)) - to point the agent at a different workbook, sheet, or set of columns, you have to manually edit (or delete) `config.json` yourself:
 
@@ -112,7 +123,7 @@ python -m venv .venv # Create a new virtual env
 
 git clone https://github.com/cyprste2717218/job_advert_recorder_agent/ .
 
-uv lock # Install pinned package versions
+uv sync # Install pinned package versions into the venv
 
 ```
 
@@ -142,7 +153,7 @@ cp .\.env.example .\.env
 
 > Note: this dashboard flow is accurate as of 11/08/2026 and may drift if Composio changes their UI - worth a quick sanity check against the live dashboard if the steps above don't match what you see.
 
-5c). (Optional) Change the `MODEL` env variable in `.env` to [another gemini model](https://ai.google.dev/gemini-api/docs/models) for use across agents, i.e. temporary service unavailability with the current model. 
+5c). (Optional) Change the `MODEL` env variable in `.env` to [another gemini model](https://ai.google.dev/gemini-api/docs/models) or [other provider model](https://adk.dev/agents/models/) for use across agents, i.e. temporary service unavailability with the current model. 
 Ideally should be another non-frontier model as anything else is overkill for the current system.
 
 6). Start the agent system!
@@ -151,7 +162,7 @@ Ideally should be another non-frontier model as anything else is overkill for th
 uv run python run_cli_select.py .
 ```
 
-`run_cli_select.py` is a drop-in replacement for `adk run` - it delegates to ADK's own CLI runner (all of ADK's flags, session persistence, etc. still work) but swaps the plain `input()` prompt for an interactive `questionary` select/multi-select/checkbox UI.
+`run_cli_select.py` is a drop-in replacement for `adk run` - it delegates to ADK's own CLI runner (all of ADK's flags, session persistence, etc. still work) but swaps the plain `input()` prompt for an interactive `questionary`/`rich` select/multi-select/checkbox UI.
 
 ## Development
 
@@ -187,3 +198,7 @@ pre-commit install
 
   To work with a different workbook and sheet, the `config.json` file has to be manually edited.
   The solution is to implement user-based input handling in the system to handle updating these details.
+
+## License
+
+[MIT](LICENSE)
