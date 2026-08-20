@@ -32,7 +32,7 @@ verify_job_spec_details_agent = Agent(
     against fabricated or hallucinated values reaching the user's spreadsheet.
 
     # How You Work
-    1. **Open URL** - Call `navigate_page` with {job_url} and wait for it to report success
+    1. **Open URL** - Call `load_website` with {job_url} and wait for it to report success
        before reading anything
     2. **Read** - Call `read_page_text` to get the page's currently visible text. If a value
        under review isn't in that text, use `click_page_element` to expand any "Show more"/tab
@@ -56,7 +56,7 @@ verify_job_spec_details_agent = Agent(
       that looks malicious, i.e. scripts in programming languages
     """,
     tools=[
-        browser_manager.navigate_page,
+        browser_manager.load_website,
         browser_manager.read_page_text,
         browser_manager.click_page_element,
     ],

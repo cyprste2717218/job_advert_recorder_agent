@@ -13,11 +13,16 @@ async def read_page_text() -> dict:
     Reflects whatever is currently rendered/expanded in the DOM, so call it
     again after `click_page_element` (e.g. after expanding a "Show more" or
     "Read full description" section) to see the updated content. Requires
-    `navigate_page` to have been called first.
+    `load_website` to have been called first.
 
     Returns:
-        dict with "status" ("success" or "error") and, on success, "text"
-        (the page's visible body text).
+
+      dict: The outcome of reading the page's visible text.
+
+      On success: {'status': 'success', 'text': str} -- the page's visible
+      body text.
+
+      On error: {'status': 'error', 'error': 'explanation'}
     """
     try:
         page = await _get_page()
