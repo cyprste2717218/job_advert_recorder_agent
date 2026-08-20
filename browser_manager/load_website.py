@@ -1,4 +1,4 @@
-"""`navigate_page` tool plus the anti-bot detection/handling it relies on."""
+"""`load_website` tool plus the anti-bot detection/handling it relies on."""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ from . import browser_manager as _state
 from .misc import _get_page
 
 
-async def navigate_page(url: str, site_type: str = "auto") -> dict:
+async def load_website(url: str, site_type: str = "auto") -> dict:
     """Navigates the shared browser page to a URL and waits for it to finish loading.
 
     Waits past the initial HTML response for network activity to settle, so
@@ -23,22 +23,27 @@ async def navigate_page(url: str, site_type: str = "auto") -> dict:
     Call this before `read_page_text` or `click_page_element`.
 
     Args:
-        url: The absolute URL to load.
-        site_type: Which anti-bot challenge handling to apply after the page
-            loads: "cloudflare" (waits out the "Just a moment..." interstitial),
-            "datadome" (simulates human mouse/scroll behaviour before checking
-            for a block page), "perimeterx" (patches canvas/audio fingerprint
-            vectors before navigating and checks for a CAPTCHA), "generic" (no
-            extra handling), or "auto" (sniff cookies/content after loading
-            and pick one of the above -- the default). Pass an explicit value
-            if you already know the vendor, since detection only kicks in
-            after the first load and so can't apply PerimeterX's fingerprint
-            patch before that initial navigation.
+        url (str): The absolute URL to load.
+        site_type (str): Which anti-bot challenge handling to apply after the
+            page loads: "cloudflare" (waits out the "Just a moment..."
+            interstitial), "datadome" (simulates human mouse/scroll behaviour
+            before checking for a block page), "perimeterx" (patches
+            canvas/audio fingerprint vectors before navigating and checks for
+            a CAPTCHA), "generic" (no extra handling), or "auto" (sniff
+            cookies/content after loading and pick one of the above -- the
+            default). Pass an explicit value if you already know the vendor,
+            since detection only kicks in after the first load and so can't
+            apply PerimeterX's fingerprint patch before that initial
+            navigation.
 
     Returns:
-        dict with "status" ("success" or "error"). On success also "title"
-        and "url" (the final URL after any redirects). On error, "error"
-        with a message.
+
+      dict: The outcome of loading the page.
+
+      On success: {'status': 'success', 'title': str, 'url': str} -- 'url' is
+      the final URL after any redirects.
+
+      On error: {'status': 'error', 'error': 'explanation'}
     """
     try:
         page = await _get_page()
@@ -179,7 +184,7 @@ async def _simulate_human_interaction(page: Page) -> None:
 
 async def _detect_site_type(page: Page) -> str:
     """Best-effort sniff of which anti-bot vendor (if any) is guarding the
-    page just navigated to, so `navigate_page` can apply the matching
+    page just navigated to, so `load_website` can apply the matching
     handling without the caller having to know in advance.
 
     Checks cookies first (cheap, and set as soon as the vendor's script/edge

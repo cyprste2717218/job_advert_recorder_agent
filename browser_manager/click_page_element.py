@@ -17,11 +17,16 @@ async def click_page_element(selector: str) -> dict:
     text= engine (e.g. "text=Show more") to target elements by visible text.
 
     Args:
-        selector: A CSS selector or Playwright selector (e.g. "text=Show more").
+        selector (str): A CSS selector or Playwright selector (e.g. "text=Show more").
 
     Returns:
-        dict with "status" ("success" or "error"), and "error" with a message
-        if the element wasn't found or wasn't clickable within the timeout.
+
+      dict: The outcome of clicking the element.
+
+      On success: {'status': 'success'}
+
+      On error: {'status': 'error', 'error': 'explanation'} -- e.g. the
+      element wasn't found or wasn't clickable within the timeout.
     """
     try:
         page = await _get_page()
